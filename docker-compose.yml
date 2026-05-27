@@ -1,0 +1,7 @@
+services:
+  catalog-service:
+    image: cuongtang3/catalog-service:latest
+    container_name: catalog-service
+    ports:
+      - "5185:5185"
+    restart: always
