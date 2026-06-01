@@ -130,7 +130,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       width="480px"
     >
       <template v-if="selectedBook">
-        <img :src="getCover(selectedBook.id)" style="width:100%; height:220px; object-fit:cover; border-radius:12px; margin-bottom:16px" />
+        <img :src="selectedBook.imageUrl || 'https://picsum.photos/300/450'" style="width:100%; height:220px; object-fit:cover; border-radius:12px; margin-bottom:16px" />
         <a-descriptions :column="1" bordered size="small">
           <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
           <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
@@ -142,6 +142,8 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
               {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
             </a-tag>
           </a-descriptions-item>
+          <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
+          <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
         </a-descriptions>
 <a-space style="margin-top: 16px; width: 100%; justify-content: flex-end">
           <a-button type="primary" style="background:#0d4a42; border-color:#0d4a42" @click="startEditFromModal(selectedBook)">Sửa</a-button>
