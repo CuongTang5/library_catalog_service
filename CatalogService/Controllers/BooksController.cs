@@ -2,6 +2,8 @@ using CatalogService.Data;
 using CatalogService.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CatalogService.Controllers
 {
@@ -10,6 +12,67 @@ namespace CatalogService.Controllers
     public class BooksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private static readonly Dictionary<string, string> Descriptions = new()
+        {
+            { "Dế Mèn Phiêu Lưu Ký", "Câu chuyện tuổi thơ hài hước và sâu sắc về những chuyến phiêu lưu của Dế Mèn, khám phá tình bạn và dũng cảm." },
+            { "Tắt Đèn", "Tác phẩm hiện thực phê phán phản ánh nỗi cơ cực của người nông dân và sự bế tắc xã hội." },
+            { "Lão Hạc", "Truyện ngắn cảm động về tình cha con, nhân phẩm và nỗi đau trong cuộc sống nông thôn Việt Nam." },
+            { "Đời Thừa", "Một lát cắt cuộc đời giàu cảm xúc, thể hiện nỗi cô đơn và thất vọng của con người trước số phận." },
+            { "Sống Mòn", "Khắc họa cuộc sống bế tắc của tầng lớp lao động trong bối cảnh xã hội thay đổi." },
+            { "Vợ Nhặt", "Tác phẩm miêu tả hoàn cảnh khó khăn nhưng ấm áp tình người giữa thời đói khát." },
+            { "Vợ Chồng A Phủ", "Câu chuyện về sự áp bức và khát vọng tự do của người dân miền núi." },
+            { "Rừng Xà Nu", "Tác phẩm về kháng chiến, tinh thần đoàn kết và hy sinh của đồng bào Tây Nguyên." },
+            { "Chiếc Lược Ngà", "Truyện cảm động về tình cha con bị chia cắt bởi chiến tranh và nỗi nhớ da diết." },
+            { "Lặng Lẽ Sa Pa", "Câu chuyện nhẹ nhàng về những con người âm thầm cống hiến nơi miền núi." },
+            { "Những Ngôi Sao Xa Xôi", "Tập truyện ngắn phản ánh tuổi trẻ, ước mơ và trách nhiệm thời chiến." },
+            { "Bước Đường Cùng", "Tác phẩm hiện thực xã hội khai thác số phận con người trong khủng hoảng và bi kịch." },
+            { "Giông Tố", "Tiểu thuyết tâm lý xã hội về mâu thuẫn gia đình và áp lực xã hội ở nông thôn." },
+            { "Truyện Kiều", "Tác phẩm cổ điển nổi tiếng của Nguyễn Du, khắc họa bi kịch, tình yêu và số phận con người." },
+            { "Lục Vân Tiên", "Truyện thơ hào hiệp, ca ngợi nghĩa khí, tình người và lý tưởng nhân nghĩa truyền thống." },
+            { "Cho Tôi Xin Một Vé Đi Tuổi Thơ", "Tập truyện/tuổi thơ đầy hoài niệm về những kỷ niệm và bài học thời trẻ con." },
+            { "Kính Vạn Hoa", "Bộ truyện hài hước, nhiều màu sắc về tuổi thơ với những tình huống dở khóc dở cười." },
+            { "Mắt Biếc", "Tiểu thuyết tình cảm giàu cảm xúc về mối tình đơn phương và ký ức thời trẻ." },
+            { "Cô Gái Đến Từ Hôm Qua", "Câu chuyện nhẹ nhàng nhưng sâu lắng về tình yêu tuổi học trò và những lựa chọn trưởng thành." },
+            { "Tôi Thấy Hoa Vàng Trên Cỏ Xanh", "Tác phẩm giàu hoài niệm, gợi nhớ tuổi thơ ở làng quê, tình bạn và những khám phá nhỏ bé." },
+            { "Ngồi Khóc Trên Cây", "Truyện ngắn/phù hợp về những cảm xúc bi thương và sự trưởng thành nội tâm." },
+            { "Làm Bạn Với Bầu Trời", "Câu chuyện truyền cảm hứng về ước mơ, hy vọng và sự kết nối với thiên nhiên." },
+            { "Con Chim Xanh Biếc Bay Về", "Tiểu thuyết nhẹ nhàng về ký ức, tình yêu và hành trình tìm lại bản thân." },
+            { "Tuổi Thơ Dữ Dội", "Tập hồi ký tuổi thơ trong bối cảnh chiến tranh, đầy dũng khí và mất mát." },
+            { "Đất Rừng Phương Nam", "Tiểu thuyết phiêu lưu pha lẫn tình cảm, miêu tả vùng đất phương Nam và con người nơi đây." },
+            { "Quê Nội", "Tác phẩm tình cảm gia đình, hướng về cội nguồn và tình quê sâu nặng." },
+            { "Harry Potter và Hòn Đá Phù Thủy", "Khởi đầu loạt truyện phiêu lưu kỳ ảo về cậu bé phù thủy và thế giới phép thuật." },
+            { "Harry Potter và Phòng Chứa Bí Mật", "Tập tiếp theo khám phá những bí ẩn trong trường Hogwarts và thử thách mới." },
+            { "Harry Potter và Tên Tù Nhân Ngục Azkaban", "Tập với sắc thái tối hơn, hé lộ quá khứ và biến cố của các nhân vật." },
+            { "Harry Potter và Chiếc Cốc Lửa", "Tập lớn lên với những thử thách quốc tế, tình bạn và cạnh tranh." },
+            { "Nhà Giả Kim", "Hành trình tìm kiếm kho báu và ý nghĩa cuộc đời, đầy triết lý và cảm hứng." },
+            { "Đắc Nhân Tâm", "Hướng dẫn nghệ thuật giao tiếp và lãnh đạo để tạo ảnh hưởng tích cực." },
+            { "Không Gia Đình", "Tiểu thuyết cảm động về hành trình và tình người của những kẻ lang thang." },
+            { "Bố Già", "Tác phẩm sâu sắc về quyền lực, gia đình và trách nhiệm trong xã hội." },
+            { "Rừng Na Uy", "Tiểu thuyết tình cảm tâm lý về cô đơn, tình yêu và bi kịch tuổi trẻ." },
+            { "Kafka Bên Bờ Biển", "Tiểu thuyết hiện đại pha trộn yếu tố huyền ảo, tâm lý và triết lý sâu sắc." },
+            { "1984", "Tiểu thuyết dystopia về chế độ toàn trị, giám sát và mất tự do cá nhân." },
+            { "Animal Farm", "Truyện ngụ ngôn chính trị phê phán chuyên chế thông qua hình ảnh trang trại động vật." },
+            { "The Great Gatsby", "Tiểu thuyết Mỹ về giấc mơ, tình yêu và sự tan vỡ trong thập niên 1920." },
+            { "To Kill a Mockingbird", "Tác phẩm về công lý, định kiến và lòng nhân ái ở miền Nam nước Mỹ." },
+            { "The Lord of the Rings", "Sử thi giả tưởng về cuộc chiến giữa thiện và ác, tình bạn và hy sinh." },
+            { "The Hobbit", "Tiền truyện phiêu lưu dẫn dắt tới thế giới Trung Địa và những chuyến đi kỳ thú." },
+            { "A Game of Thrones", "Tiểu thuyết fantasy chính trị, mưu mô và cuộc tranh đoạt ngai vàng." },
+            { "Atomic Habits", "Hướng dẫn xây dựng thói quen nhỏ để đạt kết quả lớn trong cuộc sống và công việc." },
+            { "Rich Dad Poor Dad", "Cuốn sách về tư duy tài chính và sự khác biệt giữa các cách tiếp cận tiền bạc." },
+            { "The Psychology of Money", "Phân tích quan điểm tâm lý về tiền, đầu tư và ra quyết định tài chính." },
+            { "Deep Work", "Chiến lược tập trung sâu để đạt năng suất cao trong công việc trí tuệ." },
+            { "Clean Code", "Hướng dẫn viết mã sạch, dễ đọc và bảo trì để cải thiện chất lượng phần mềm." },
+            { "Design Patterns", "Tập hợp các mẫu thiết kế phần mềm kinh điển để giải quyết các vấn đề lập trình phổ biến." },
+            { "The Pragmatic Programmer", "Lời khuyên thực tế và nguyên tắc để trở thành lập trình viên hiệu quả." },
+            { "Introduction to Algorithms", "Tài liệu tham khảo toàn diện về thuật toán và cấu trúc dữ liệu." },
+            { "Artificial Intelligence: A Modern Approach", "Giáo trình toàn diện về trí tuệ nhân tạo, lý thuyết và ứng dụng." },
+            { "Refactoring", "Hướng dẫn kỹ thuật tái cấu trúc mã để cải thiện thiết kế mà không thay đổi hành vi." },
+            { "Code Complete", "Bộ sách tham khảo về thực hành tốt trong xây dựng phần mềm và kỹ thuật lập trình." },
+            { "Computer Networks", "Tổng quan về nguyên lý và giao thức mạng máy tính." },
+            { "Operating System Concepts", "Giới thiệu các khái niệm cơ bản về hệ điều hành và thiết kế của chúng." },
+            { "VueJS", "Tài liệu/ứng dụng cơ bản về phát triển giao diện với Vue.js." },
+            { "Dotnet", "Tổng quan về nền tảng .NET và cách xây dựng ứng dụng trên đó." }
+        };
 
         public BooksController(AppDbContext context)
         {
@@ -18,6 +81,8 @@ namespace CatalogService.Controllers
 
         private static object MapToBookResponse(Book b)
         {
+            Descriptions.TryGetValue(b.TenSach ?? string.Empty, out var desc);
+            var mota = !string.IsNullOrWhiteSpace(desc) ? desc : $"Tác phẩm {b.TenSach} của tác giả {b.TacGia}.";
             return new
             {
                 b.Id,
@@ -28,8 +93,25 @@ namespace CatalogService.Controllers
                 b.SoBanDaMuon,
                 b.SoBanConLai,
                 b.TrangThai,
-                imageUrl = $"https://picsum.photos/seed/book-{b.Id}/300/450"
+                imageUrl = $"https://picsum.photos/seed/book-{b.Id}/300/450",
+                moTa = mota,
+                isbn = $"978000000{b.Id:D4}"
             };
+        }
+
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<object>>> SearchBooks([FromQuery] string q)
+        {
+            if (string.IsNullOrWhiteSpace(q))
+            {
+                return Ok(Enumerable.Empty<object>());
+            }
+
+            var books = await _context.Books
+                .Where(b => EF.Functions.Like(b.TenSach, $"%{q}%") || EF.Functions.Like(b.TacGia, $"%{q}%"))
+                .ToListAsync();
+
+            return Ok(books.Select(MapToBookResponse));
         }
 
         [HttpGet]
