@@ -16,11 +16,29 @@ namespace CatalogService.Controllers
             _context = context;
         }
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Book>>> GetBooks()
+        private static object MapToBookResponse(Book b)
         {
-            var books = await _context.Books.ToListAsync();
-            return Ok(books);
+            return new
+            {
+                b.Id,
+                b.TenSach,
+                b.TacGia,
+                b.NhaSanXuat,
+                b.SoLuong,
+                b.SoBanDaMuon,
+                b.SoBanConLai,
+                b.TrangThai,
+                imageUrl = $"https://picsum.photos/seed/book-{b.Id}/300/450"
+            };
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<object>>> GetBooks()
+        {
+            var books = await _context.Books
+                .ToListAsync();
+
+            return Ok(books.Select(MapToBookResponse));
         }
 
         [HttpGet("products")]
@@ -44,14 +62,14 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<Book>> GetBook(int id)
+        public async Task<ActionResult<object>> GetBook(int id)
         {
             var book = await _context.Books.FindAsync(id);
             if (book is null)
             {
                 return NotFound();
             }
-            return Ok(book);
+            return Ok(MapToBookResponse(book));
         }
 
         [HttpPost]
