@@ -119,6 +119,7 @@ D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.AssemblyInfo.cs
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.csproj.CoreCompileInputs.cache
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.MvcApplicationPartsAssemblyInfo.cs
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.MvcApplicationPartsAssemblyInfo.cache
+D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.sourcelink.json
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\staticwebassets.build.json
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\staticwebassets.development.json
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\staticwebassets\msbuild.CatalogService.Microsoft.AspNetCore.StaticWebAssets.props
@@ -133,4 +134,3 @@ D:\fullstack\btl\CatalogService\obj\Debug\net8.0\refint\CatalogService.dll
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.pdb
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.genruntimeconfig.cache
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\ref\CatalogService.dll
-D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.sourcelink.json

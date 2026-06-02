@@ -181,6 +181,15 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
         <a-form-item label="Số bản đã mượn">
           <a-input-number v-model:value="form.soBanDaMuon" :min="0" style="width: 100%" />
         </a-form-item>
+        <a-form-item label="ISBN">
+          <a-input v-model:value="form.isbn" placeholder="Nhập ISBN" />
+        </a-form-item>
+        <a-form-item label="Link ảnh bìa">
+          <a-input v-model:value="form.imageUrl" placeholder="Nhập URL ảnh bìa" />
+        </a-form-item>
+        <a-form-item label="Mô tả sách">
+          <a-textarea v-model:value="form.moTa" rows="4" placeholder="Nhập mô tả sách" />
+        </a-form-item>
         <a-form-item label="Số bản còn lại">
           <a-input-number :value="formAvailable" disabled style="width: 100%" />
         </a-form-item>
@@ -210,7 +219,7 @@ const selectedBook = ref(null)
 const saving = ref(false)
 const collapsed = ref(false)
 
-const form = ref({ tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0 })
+const form = ref({ tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0, imageUrl: '', moTa: '', isbn: '' })
 
 const columns = [
   { title: 'Mã', dataIndex: 'id', key: 'id', width: 60, align: 'center', sorter: (a, b) => a.id - b.id },
@@ -222,19 +231,6 @@ const columns = [
   { title: 'Trạng thái', key: 'status', width: 140, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
   { title: 'Thao tác', key: 'action', width: 200, fixed: 'right' }
 ]
-
-const covers = [
-  'https://covers.openlibrary.org/b/isbn/9780143127550-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780439708180-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780061120084-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780547928227-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780132350884-L.jpg',
-  'https://covers.openlibrary.org/b/isbn/9780201633610-L.jpg'
-]
-
-const getCover = (id) => covers[(id ?? 0) % covers.length]
 
 const loadBooks = async () => {
   const res = await fetch(API_URL)
@@ -258,7 +254,7 @@ const openModal = (book) => { selectedBook.value = book; detailOpen.value = true
 
 const startAdd = () => {
   editingId.value = null
-  form.value = { tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0 }
+  form.value = { tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0, imageUrl: '', moTa: '', isbn: '' }
   formOpen.value = true
 }
 

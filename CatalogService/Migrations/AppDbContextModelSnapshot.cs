@@ -25,6 +25,20 @@ namespace CatalogService.Migrations
                     .IsRequired()
                     .HasColumnType("nvarchar(max)");
 
+                b.Property<int>("SoBanDaMuon")
+                    .HasColumnType("int");
+
+                b.Property<string>("ImageUrl")
+                    .HasColumnType("nvarchar(500)")
+                    .HasMaxLength(500);
+
+                b.Property<string>("Isbn")
+                    .HasColumnType("nvarchar(50)")
+                    .HasMaxLength(50);
+
+                b.Property<string>("MoTa")
+                    .HasColumnType("nvarchar(max)");
+
                 b.Property<int>("SoLuong")
                     .HasColumnType("int");
 

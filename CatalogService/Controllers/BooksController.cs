@@ -82,7 +82,14 @@ namespace CatalogService.Controllers
         private static object MapToBookResponse(Book b)
         {
             Descriptions.TryGetValue(b.TenSach ?? string.Empty, out var desc);
-            var mota = !string.IsNullOrWhiteSpace(desc) ? desc : $"Tác phẩm {b.TenSach} của tác giả {b.TacGia}.";
+            var mota = !string.IsNullOrWhiteSpace(b.MoTa)
+                ? b.MoTa
+                : !string.IsNullOrWhiteSpace(desc)
+                    ? desc
+                    : $"Tác phẩm {b.TenSach} của tác giả {b.TacGia}.";
+            var imageUrl = !string.IsNullOrWhiteSpace(b.ImageUrl)
+                ? b.ImageUrl
+                : $"https://picsum.photos/seed/book-{b.Id}/300/450";
             return new
             {
                 b.Id,
@@ -93,9 +100,9 @@ namespace CatalogService.Controllers
                 b.SoBanDaMuon,
                 b.SoBanConLai,
                 b.TrangThai,
-                imageUrl = $"https://picsum.photos/seed/book-{b.Id}/300/450",
+                imageUrl,
                 moTa = mota,
-                isbn = $"978000000{b.Id:D4}"
+                isbn = b.Isbn
             };
         }
 
@@ -181,6 +188,9 @@ namespace CatalogService.Controllers
             existingBook.NhaSanXuat = book.NhaSanXuat;
             existingBook.SoLuong = book.SoLuong;
             existingBook.SoBanDaMuon = book.SoBanDaMuon;
+            existingBook.ImageUrl = book.ImageUrl;
+            existingBook.MoTa = book.MoTa;
+            existingBook.Isbn = book.Isbn;
 
             await _context.SaveChangesAsync();
             return NoContent();
