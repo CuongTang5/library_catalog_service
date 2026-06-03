@@ -327,17 +327,17 @@ const parseTheLoaiString = (value) => {
 }
 
 const columns = [
-  { title: 'STT', key: 'stt', width: 60, align: 'center' },
-  { title: 'Mã', key: 'displayId', width: 80, align: 'center' },
-  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
-  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
-  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
-  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 220 },
-  { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
-  { title: 'Còn', key: 'available', width: 60, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
-  { title: 'Trạng thái', key: 'status', width: 140, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
-  { title: 'Đánh giá', key: 'rating', width: 150, align: 'center' },
-  { title: 'Thao tác', key: 'action', width: 200, fixed: 'right' }
+  { title: 'STT', key: 'stt', width: 40, align: 'center' },
+  { title: 'Mã', key: 'displayId', width: 50, align: 'center' },
+  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 160, sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
+  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 120, sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
+  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 130, sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
+  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 120 },
+  { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 80, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
+  { title: 'Còn', key: 'available', width: 80, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
+  { title: 'Trạng thái', key: 'status', width: 100, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
+  { title: 'Đánh giá', key: 'rating', width: 90, align: 'center' },
+  { title: 'Thao tác', key: 'action', width: 130, fixed: 'right' }
 ]
 
 const loadBooks = async () => {
