@@ -142,6 +142,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
               {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
             </a-tag>
           </a-descriptions-item>
+          <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
           <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
           <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
         </a-descriptions>
@@ -174,6 +175,18 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
         </a-form-item>
         <a-form-item label="Nhà xuất bản" required>
           <a-input v-model:value="form.nhaSanXuat" placeholder="Nhập nhà xuất bản" />
+        </a-form-item>
+        <a-form-item label="Thể loại">
+          <a-select
+            mode="multiple"
+            v-model:value="form.theLoaiValues"
+            :options="theLoaiOptions"
+            placeholder="Chọn thể loại"
+            allow-clear
+          />
+        </a-form-item>
+        <a-form-item v-if="form.theLoaiValues.includes('Khác')" label="Nhập thể loại khác">
+          <a-input v-model:value="form.theLoaiKhac" placeholder="Nhập thể loại khác" />
         </a-form-item>
         <a-form-item label="Số lượng" required>
           <a-input-number v-model:value="form.soLuong" :min="0" style="width: 100%" />
@@ -219,14 +232,74 @@ const selectedBook = ref(null)
 const saving = ref(false)
 const collapsed = ref(false)
 
-const form = ref({ tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0, imageUrl: '', moTa: '', isbn: '' })
+const theLoaiOptions = [
+  { label: 'Văn học Việt Nam', value: 'Văn học Việt Nam' },
+  { label: 'Văn học nước ngoài', value: 'Văn học nước ngoài' },
+  { label: 'Thiếu nhi', value: 'Thiếu nhi' },
+  { label: 'Truyện ngắn', value: 'Truyện ngắn' },
+  { label: 'Tiểu thuyết', value: 'Tiểu thuyết' },
+  { label: 'Kỹ năng sống', value: 'Kỹ năng sống' },
+  { label: 'Công nghệ thông tin', value: 'Công nghệ thông tin' },
+  { label: 'Khoa học', value: 'Khoa học' },
+  { label: 'Kinh tế', value: 'Kinh tế' },
+  { label: 'Giáo trình', value: 'Giáo trình' },
+  { label: 'Khác', value: 'Khác' }
+]
+
+const form = ref({
+  tenSach: '',
+  tacGia: '',
+  nhaSanXuat: '',
+  soLuong: 0,
+  soBanDaMuon: 0,
+  imageUrl: '',
+  moTa: '',
+  isbn: '',
+  theLoaiValues: [],
+  theLoaiKhac: ''
+})
+
+const buildTheLoaiPayload = () => {
+  const selected = Array.isArray(form.value.theLoaiValues) ? form.value.theLoaiValues : []
+  const mainValues = selected.filter(item => item !== 'Khác')
+  const otherValue = form.value.theLoaiKhac?.trim() || ''
+  const list = [...mainValues]
+  if (selected.includes('Khác') && otherValue) {
+    list.push(otherValue)
+  }
+  return list.filter(Boolean).join(', ')
+}
+
+const parseTheLoaiString = (value) => {
+  const raw = (value || '').split(',').map(item => item.trim()).filter(Boolean)
+  const known = []
+  const unknown = []
+  const optionValues = theLoaiOptions.map(opt => opt.value).filter(val => val !== 'Khác')
+
+  raw.forEach(item => {
+    if (optionValues.includes(item)) {
+      known.push(item)
+    } else {
+      unknown.push(item)
+    }
+  })
+
+  const theLoaiValues = [...new Set(known)]
+  const theLoaiKhac = unknown.join(', ')
+  if (theLoaiKhac && !theLoaiValues.includes('Khác')) {
+    theLoaiValues.push('Khác')
+  }
+
+  return { theLoaiValues, theLoaiKhac }
+}
 
 const columns = [
   { title: 'Mã', dataIndex: 'id', key: 'id', width: 60, align: 'center', sorter: (a, b) => a.id - b.id },
   { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
   { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
   { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
-{ title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
+  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 220 },
+  { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
   { title: 'Còn', key: 'available', width: 60, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
   { title: 'Trạng thái', key: 'status', width: 140, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
   { title: 'Thao tác', key: 'action', width: 200, fixed: 'right' }
@@ -246,21 +319,49 @@ const filteredBooks = computed(() => {
   return books.value.filter(b =>
     b.tenSach?.toLowerCase().includes(q) ||
     b.tacGia?.toLowerCase().includes(q) ||
-    b.nhaSanXuat?.toLowerCase().includes(q)
+    b.nhaSanXuat?.toLowerCase().includes(q) ||
+    (b.theLoai || '').toLowerCase().includes(q)
   )
 })
 
 const openModal = (book) => { selectedBook.value = book; detailOpen.value = true }
 
+const resetForm = () => {
+  form.value = {
+    tenSach: '',
+    tacGia: '',
+    nhaSanXuat: '',
+    soLuong: 0,
+    soBanDaMuon: 0,
+    imageUrl: '',
+    moTa: '',
+    isbn: '',
+    theLoaiValues: [],
+    theLoaiKhac: ''
+  }
+}
+
 const startAdd = () => {
   editingId.value = null
-  form.value = { tenSach: '', tacGia: '', nhaSanXuat: '', soLuong: 0, soBanDaMuon: 0, imageUrl: '', moTa: '', isbn: '' }
+  resetForm()
   formOpen.value = true
 }
 
 const startEdit = (book) => {
   editingId.value = book.id
-  form.value = { ...book, soBanDaMuon: book.soBanDaMuon ?? 0 }
+  const parsed = parseTheLoaiString(book.theLoai)
+  form.value = {
+    tenSach: book.tenSach || '',
+    tacGia: book.tacGia || '',
+    nhaSanXuat: book.nhaSanXuat || '',
+    soLuong: book.soLuong ?? 0,
+    soBanDaMuon: book.soBanDaMuon ?? 0,
+    imageUrl: book.imageUrl || '',
+    moTa: book.moTa || '',
+    isbn: book.isbn || '',
+    theLoaiValues: parsed.theLoaiValues,
+    theLoaiKhac: parsed.theLoaiKhac
+  }
   formOpen.value = true
 }
 
@@ -274,8 +375,20 @@ const cancelForm = () => { formOpen.value = false; editingId.value = null }
 const saveBook = async () => {
   saving.value = true
   try {
+    const payload = {
+      tenSach: form.value.tenSach,
+      tacGia: form.value.tacGia,
+      nhaSanXuat: form.value.nhaSanXuat,
+      soLuong: form.value.soLuong,
+      soBanDaMuon: form.value.soBanDaMuon,
+      imageUrl: form.value.imageUrl,
+      moTa: form.value.moTa,
+      isbn: form.value.isbn,
+      theLoai: buildTheLoaiPayload()
+    }
+
     if (editingId.value) {
-      const payload = { ...form.value, id: editingId.value }
+      payload.id = editingId.value
       const res = await fetch(`${API_URL}/${editingId.value}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -290,14 +403,15 @@ const saveBook = async () => {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form.value)
+        body: JSON.stringify(payload)
       })
       if (!res.ok) {
         const err = await res.text()
         console.error('POST failed:', res.status, err)
         return
       }
-}
+    }
+
     formOpen.value = false
     const savedId = editingId.value
     editingId.value = null

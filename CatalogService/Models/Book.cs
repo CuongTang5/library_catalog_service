@@ -20,6 +20,8 @@ namespace CatalogService.Models
 
         public string? Isbn { get; set; }
 
+        public string? TheLoai { get; set; }
+
         public int SoBanConLai
         {
             get

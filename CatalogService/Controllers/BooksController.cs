@@ -102,7 +102,8 @@ namespace CatalogService.Controllers
                 b.TrangThai,
                 imageUrl,
                 moTa = mota,
-                isbn = b.Isbn
+                isbn = b.Isbn,
+                theLoai = b.TheLoai
             };
         }
 
@@ -143,7 +144,8 @@ namespace CatalogService.Controllers
                     soLuong = b.SoLuong,
                     soBanDaMuon = b.SoBanDaMuon,
                     soBanConLai = b.SoBanDaMuon >= 0 ? b.SoLuong - b.SoBanDaMuon : b.SoLuong,
-                    trangThai = b.SoBanDaMuon < b.SoLuong ? "Có thể mượn" : "Hết sách"
+                    trangThai = b.SoBanDaMuon < b.SoLuong ? "Có thể mượn" : "Hết sách",
+                    theLoai = b.TheLoai
                 })
                 .ToListAsync();
 
@@ -191,6 +193,7 @@ namespace CatalogService.Controllers
             existingBook.ImageUrl = book.ImageUrl;
             existingBook.MoTa = book.MoTa;
             existingBook.Isbn = book.Isbn;
+            existingBook.TheLoai = book.TheLoai;
 
             await _context.SaveChangesAsync();
             return NoContent();
