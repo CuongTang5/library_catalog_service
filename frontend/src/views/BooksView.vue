@@ -87,17 +87,18 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
           :columns="columns"
           :data-source="filteredBooks"
           :row-key="r => r.id"
-          :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: total => `Tổng ${total} sách` }"
+          :pagination="paginationConfig"
+          @change="handleTableChange"
           size="middle"
           :scroll="{ x: 700 }"
           style="background: white; border-radius: 16px"
         >
           <template #bodyCell="{ column, record, index }">
             <template v-if="column.key === 'stt'">
-              {{ index + 1 }}
+              {{ calculateStt(index) }}
             </template>
             <template v-if="column.key === 'displayId'">
-              {{ 1000 + index + 1 }}
+              {{ 1000 + calculateStt(index) }}
             </template>
             <template v-if="column.key === 'available'">
               {{ getAvailable(record) }}
@@ -246,6 +247,23 @@ const editingId = ref(null)
 const selectedBook = ref(null)
 const saving = ref(false)
 const collapsed = ref(false)
+const pagination = ref({ current: 1, pageSize: 10 })
+
+const paginationConfig = computed(() => ({
+  current: pagination.value.current,
+  pageSize: pagination.value.pageSize,
+  showSizeChanger: true,
+  showTotal: total => `Tổng ${total} sách`
+}))
+
+const handleTableChange = (paginationInfo) => {
+  pagination.value.current = paginationInfo.current || 1
+  pagination.value.pageSize = paginationInfo.pageSize || pagination.value.pageSize
+}
+
+const calculateStt = (index) => {
+  return (pagination.value.current - 1) * pagination.value.pageSize + index + 1
+}
 
 const theLoaiOptions = [
   { label: 'Văn học Việt Nam', value: 'Văn học Việt Nam' },
