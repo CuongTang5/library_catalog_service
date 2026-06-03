@@ -20,6 +20,10 @@ namespace CatalogService.Models
 
         public string? Isbn { get; set; }
 
+        public double DanhGiaTrungBinh { get; set; } = 0;
+
+        public int SoLuotDanhGia { get; set; } = 0;
+
         public string? TheLoai { get; set; }
 
         public int SoBanConLai

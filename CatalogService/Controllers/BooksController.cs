@@ -103,7 +103,9 @@ namespace CatalogService.Controllers
                 imageUrl,
                 moTa = mota,
                 isbn = b.Isbn,
-                theLoai = b.TheLoai
+                theLoai = b.TheLoai,
+                danhGiaTrungBinh = b.DanhGiaTrungBinh,
+                soLuotDanhGia = b.SoLuotDanhGia
             };
         }
 
@@ -194,9 +196,43 @@ namespace CatalogService.Controllers
             existingBook.MoTa = book.MoTa;
             existingBook.Isbn = book.Isbn;
             existingBook.TheLoai = book.TheLoai;
+            existingBook.DanhGiaTrungBinh = book.DanhGiaTrungBinh;
+            existingBook.SoLuotDanhGia = book.SoLuotDanhGia;
 
             await _context.SaveChangesAsync();
             return NoContent();
+        }
+
+        public class BookRatingRequest
+        {
+            public int Rating { get; set; }
+        }
+
+        [HttpPost("{id:int}/rating")]
+        public async Task<ActionResult<object>> RateBook(int id, [FromBody] BookRatingRequest request)
+        {
+            if (request is null || request.Rating < 1 || request.Rating > 5)
+            {
+                return BadRequest("Rating must be an integer between 1 and 5.");
+            }
+
+            var existingBook = await _context.Books.FindAsync(id);
+            if (existingBook is null)
+            {
+                return NotFound();
+            }
+
+            var oldAverage = existingBook.DanhGiaTrungBinh;
+            var oldCount = existingBook.SoLuotDanhGia;
+            var newCount = oldCount + 1;
+            var newAverage = ((oldAverage * oldCount) + request.Rating) / newCount;
+
+            existingBook.DanhGiaTrungBinh = newAverage;
+            existingBook.SoLuotDanhGia = newCount;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(MapToBookResponse(existingBook));
         }
 
         public class BookQuantityUpdateRequest
