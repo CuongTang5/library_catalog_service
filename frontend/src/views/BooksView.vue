@@ -92,7 +92,13 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
           :scroll="{ x: 700 }"
           style="background: white; border-radius: 16px"
         >
-          <template #bodyCell="{ column, record }">
+          <template #bodyCell="{ column, record, index }">
+            <template v-if="column.key === 'stt'">
+              {{ index + 1 }}
+            </template>
+            <template v-if="column.key === 'displayId'">
+              {{ 1000 + index + 1 }}
+            </template>
             <template v-if="column.key === 'available'">
               {{ getAvailable(record) }}
             </template>
@@ -100,6 +106,12 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
               <a-tag :color="getAvailable(record) > 0 ? 'success' : 'error'">
                 {{ getAvailable(record) > 0 ? 'Có thể mượn' : 'Hết sách' }}
               </a-tag>
+            </template>
+            <template v-if="column.key === 'rating'">
+              <div>
+                <div>⭐ {{ formatRating(record) }} / 5</div>
+                <div>{{ record.soLuotDanhGia ?? 0 }} lượt</div>
+              </div>
             </template>
             <template v-if="column.key === 'action'">
               <a-space>
@@ -132,6 +144,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       <template v-if="selectedBook">
         <img :src="selectedBook.imageUrl || 'https://picsum.photos/300/450'" style="width:100%; height:220px; object-fit:cover; border-radius:12px; margin-bottom:16px" />
         <a-descriptions :column="1" bordered size="small">
+          <a-descriptions-item label="Mã">{{ getSelectedBookDisplayId() || '-' }}</a-descriptions-item>
           <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
           <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
           <a-descriptions-item label="Số lượng">{{ selectedBook.soLuong }}</a-descriptions-item>
@@ -144,6 +157,8 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
           </a-descriptions-item>
           <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
           <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
+          <a-descriptions-item label="Đánh giá trung bình">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
+          <a-descriptions-item label="Số lượt đánh giá">{{ selectedBook.soLuotDanhGia ?? 0 }} lượt</a-descriptions-item>
           <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
         </a-descriptions>
 <a-space style="margin-top: 16px; width: 100%; justify-content: flex-end">
@@ -294,7 +309,8 @@ const parseTheLoaiString = (value) => {
 }
 
 const columns = [
-  { title: 'Mã', dataIndex: 'id', key: 'id', width: 60, align: 'center', sorter: (a, b) => a.id - b.id },
+  { title: 'STT', key: 'stt', width: 60, align: 'center' },
+  { title: 'Mã', key: 'displayId', width: 80, align: 'center' },
   { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
   { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
   { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
@@ -302,6 +318,7 @@ const columns = [
   { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
   { title: 'Còn', key: 'available', width: 60, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
   { title: 'Trạng thái', key: 'status', width: 140, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
+  { title: 'Đánh giá', key: 'rating', width: 150, align: 'center' },
   { title: 'Thao tác', key: 'action', width: 200, fixed: 'right' }
 ]
 
@@ -311,6 +328,22 @@ const loadBooks = async () => {
 }
 
 const getAvailable = (book) => book.soLuong - (book.soBanDaMuon ?? 0)
+
+const formatRating = (book) => {
+  const avg = Number(book?.danhGiaTrungBinh ?? 0)
+  return avg.toFixed(1)
+}
+
+const getSelectedBookStt = () => {
+  if (!selectedBook.value) return null
+  const index = filteredBooks.value.findIndex(b => b.id === selectedBook.value.id)
+  return index >= 0 ? index + 1 : null
+}
+
+const getSelectedBookDisplayId = () => {
+  const stt = getSelectedBookStt()
+  return stt ? 1000 + stt : null
+}
 
 const formAvailable = computed(() => (form.value.soLuong ?? 0) - (form.value.soBanDaMuon ?? 0))
 
