@@ -67,9 +67,14 @@
             </a-space>
           </a-col>
           <a-col>
-            <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
-              + Thêm sách
-            </a-button>
+            <a-space>
+              <a-button @click="exportToExcel" style="background: #4CAF50; border-color: #4CAF50; color: white">
+                📥 Xuất Excel
+              </a-button>
+              <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
+                + Thêm sách
+              </a-button>
+            </a-space>
           </a-col>
         </a-row>
 
@@ -230,6 +235,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 
 const isEmbedded = (() => {
   if (new URLSearchParams(window.location.search).get('embed') === 'true') return true
@@ -484,6 +490,45 @@ const deleteBook = async (id) => {
 const deleteBookFromModal = async (id) => {
   await deleteBook(id)
   detailOpen.value = false
+}
+
+const exportToExcel = () => {
+  // Lấy toàn bộ dữ liệu từ filteredBooks (có tính đến tìm kiếm)
+  const dataToExport = filteredBooks.value.map((book, index) => ({
+    'STT': index + 1,
+    'Mã': 1000 + index + 1,
+    'Tên sách': book.tenSach || '',
+    'Tác giả': book.tacGia || '',
+    'NXB': book.nhaSanXuat || '',
+    'Thể loại': book.theLoai || '',
+    'Số lượng': book.soLuong ?? 0,
+    'Còn lại': getAvailable(book),
+    'Trạng thái': getAvailable(book) > 0 ? 'Có thể mượn' : 'Hết sách',
+    'Đánh giá': formatRating(book)
+  }))
+
+  // Tạo workbook
+  const worksheet = XLSX.utils.json_to_sheet(dataToExport)
+  
+  // Cấu hình độ rộng cột
+  worksheet['!cols'] = [
+    { wch: 8 },   // STT
+    { wch: 10 },  // Mã
+    { wch: 30 },  // Tên sách
+    { wch: 18 },  // Tác giả
+    { wch: 20 },  // NXB
+    { wch: 20 },  // Thể loại
+    { wch: 10 },  // Số lượng
+    { wch: 10 },  // Còn lại
+    { wch: 12 },  // Trạng thái
+    { wch: 10 }   // Đánh giá
+  ]
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách sách')
+  
+  // Xuất file
+  XLSX.writeFile(workbook, 'DanhSachSach.xlsx')
 }
 
 onMounted(loadBooks)
