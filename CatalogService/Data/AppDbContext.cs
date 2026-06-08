@@ -21,6 +21,8 @@ namespace CatalogService.Data
                 new Book { Id = 2, TenSach = "SQL Server", TacGia = "Trần Thị B", NhaSanXuat = "NXB Tin học", SoLuong = 8 },
                 new Book { Id = 3, TenSach = "AI cơ bản", TacGia = "Lê Văn C", NhaSanXuat = "NXB Công nghệ", SoLuong = 12 }
             );
+
+            // No Category entity configured — categories are derived from Book.TheLoai
         }
     }
 }

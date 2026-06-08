@@ -88,92 +88,126 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
         />
 
         <!-- TABLE -->
-        <a-table
-          :columns="columns"
-          :data-source="filteredBooks"
-          :row-key="r => r.id"
-          :pagination="paginationConfig"
-          @change="handleTableChange"
-          size="middle"
-          :scroll="{ x: 700 }"
-          style="background: white; border-radius: 16px"
-        >
-          <template #bodyCell="{ column, record, index }">
-            <template v-if="column.key === 'stt'">
-              {{ calculateStt(index) }}
-            </template>
-            <template v-if="column.key === 'displayId'">
-              {{ 1000 + calculateStt(index) }}
-            </template>
-            <template v-if="column.key === 'available'">
-              {{ getAvailable(record) }}
-            </template>
-            <template v-if="column.key === 'status'">
-              <a-tag :color="getAvailable(record) > 0 ? 'success' : 'error'">
-                {{ getAvailable(record) > 0 ? 'Có thể mượn' : 'Hết sách' }}
-              </a-tag>
-            </template>
-            <template v-if="column.key === 'rating'">
-              <div>
-                <div>⭐ {{ formatRating(record) }} / 5</div>
-                <div>{{ record.soLuotDanhGia ?? 0 }} lượt</div>
-              </div>
-            </template>
-            <template v-if="column.key === 'action'">
-              <a-space>
-                <a-button size="small" @click="openModal(record)">Chi tiết</a-button>
-                <a-button size="small" type="primary" ghost @click="startEdit(record)">Sửa</a-button>
-                <a-popconfirm
-                  title="Bạn có chắc muốn xóa sách này?"
-                  ok-text="Xóa"
-                  cancel-text="Hủy"
-                  ok-type="danger"
-                  @confirm="deleteBook(record.id)"
-                >
-                  <a-button size="small" danger>Xóa</a-button>
-                </a-popconfirm>
-              </a-space>
-            </template>
-          </template>
-        </a-table>
+        <div class="table-wrapper">
+          <a-table
+            :columns="columns"
+            :data-source="filteredBooks"
+            :row-key="r => r.id"
+            :pagination="paginationConfig"
+            @change="handleTableChange"
+            size="middle"
+            style="background: white; border-radius: 16px; width:100%"
+          >
+            <template #bodyCell="{ column, record, index }">
+              <template v-if="column.key === 'stt'">
+                {{ calculateStt(index) }}
+              </template>
 
-      </a-layout-content>
-    </a-layout>
+              <template v-if="column.key === 'displayId'">
+                {{ 1000 + calculateStt(index) }}
+              </template>
+
+              <template v-if="column.key === 'tenSach'">
+                <div style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.tenSach }}</div>
+              </template>
+
+              <template v-if="column.key === 'tacGia'">
+                <div style="max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.tacGia }}</div>
+              </template>
+
+              <template v-if="column.key === 'nhaSanXuat'">
+                <div style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.nhaSanXuat }}</div>
+              </template>
+
+              <template v-if="column.key === 'theLoai'">
+                <a-tooltip :title="record.theLoai">
+                  <div class="cell-theloai">{{ record.theLoai || '' }}</div>
+                </a-tooltip>
+              </template>
+
+              <template v-if="column.key === 'soLuong'">
+                {{ record.soLuong }}
+              </template>
+
+              <template v-if="column.key === 'available'">
+                {{ getAvailable(record) }}
+              </template>
+
+              <template v-if="column.key === 'status'">
+                <a-tag :color="getAvailable(record) > 0 ? 'success' : 'error'">
+                  {{ getAvailable(record) > 0 ? 'Có thể mượn' : 'Hết sách' }}
+                </a-tag>
+              </template>
+
+              <template v-if="column.key === 'rating'">
+                <div class="rating-compact">
+                  <div class="stars">⭐ {{ formatRating(record) }} / 5</div>
+                  <div class="count">{{ record.soLuotDanhGia ?? 0 }} lượt</div>
+                </div>
+              </template>
+
+              <template v-if="column.key === 'action'">
+                <div class="action-buttons">
+                  <a-button size="small" @click="openModal(record)">Chi tiết</a-button>
+                  <a-button size="small" type="primary" ghost @click="startEdit(record)">Sửa</a-button>
+                  <a-popconfirm
+                    title="Bạn có chắc muốn xóa sách này?"
+                    ok-text="Xóa"
+                    cancel-text="Hủy"
+                    ok-type="danger"
+                    @confirm="deleteBook(record.id)"
+                  >
+                    <a-button size="small" danger>Xóa</a-button>
+                  </a-popconfirm>
+                </div>
+              </template>
+            </template>
+          </a-table>
+        </div>
 
     <!-- MODAL CHI TIẾT -->
     <a-modal
       v-model:open="detailOpen"
       :title="selectedBook?.tenSach"
       :footer="null"
-      width="480px"
+      :width="900"
+      :body-style="{ maxHeight: '70vh', overflow: 'auto' }"
     >
       <template v-if="selectedBook">
-        <img :src="selectedBook.imageUrl || 'https://picsum.photos/300/450'" style="width:100%; height:220px; object-fit:cover; border-radius:12px; margin-bottom:16px" />
-        <a-descriptions :column="1" bordered size="small">
-          <a-descriptions-item label="Mã">{{ getSelectedBookDisplayId() || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
-          <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
-          <a-descriptions-item label="Số lượng">{{ selectedBook.soLuong }}</a-descriptions-item>
-          <a-descriptions-item label="Đã mượn">{{ selectedBook.soBanDaMuon ?? 0 }}</a-descriptions-item>
-          <a-descriptions-item label="Còn lại">{{ getAvailable(selectedBook) }}</a-descriptions-item>
-          <a-descriptions-item label="Trạng thái">
-            <a-tag :color="getAvailable(selectedBook) > 0 ? 'success' : 'error'">
-              {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
-            </a-tag>
-          </a-descriptions-item>
-          <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
-          <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
-          <a-descriptions-item label="Đánh giá trung bình">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
-          <a-descriptions-item label="Số lượt đánh giá">{{ selectedBook.soLuotDanhGia ?? 0 }} lượt</a-descriptions-item>
-          <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
-        </a-descriptions>
-<a-space style="margin-top: 16px; width: 100%; justify-content: flex-end">
-          <a-button type="primary" style="background:#0d4a42; border-color:#0d4a42" @click="startEditFromModal(selectedBook)">Sửa</a-button>
-          <a-popconfirm title="Xóa sách này?" ok-text="Xóa" cancel-text="Hủy" ok-type="danger" @confirm="deleteBookFromModal(selectedBook.id)">
-            <a-button danger>Xóa</a-button>
-          </a-popconfirm>
-          <a-button @click="detailOpen = false">Đóng</a-button>
-        </a-space>
+        <a-row gutter="16">
+          <a-col :span="8">
+            <div class="detail-image-wrapper">
+              <img :src="selectedBook.imageUrl || 'https://picsum.photos/400/600'" class="detail-image" />
+            </div>
+          </a-col>
+          <a-col :span="16">
+            <a-descriptions :column="1" bordered size="small">
+              <a-descriptions-item label="Mã">{{ getSelectedBookDisplayId() || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
+              <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
+              <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
+              <a-descriptions-item label="Số lượng">{{ selectedBook.soLuong }}</a-descriptions-item>
+              <a-descriptions-item label="Đã mượn">{{ selectedBook.soBanDaMuon ?? 0 }}</a-descriptions-item>
+              <a-descriptions-item label="Còn lại">{{ getAvailable(selectedBook) }}</a-descriptions-item>
+              <a-descriptions-item label="Trạng thái">
+                <a-tag :color="getAvailable(selectedBook) > 0 ? 'success' : 'error'">
+                  {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item label="Đánh giá">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
+              <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
+              <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
+            </a-descriptions>
+
+            <div style="margin-top: 16px; display:flex; justify-content:flex-end; gap:8px">
+              <a-button type="primary" style="background:#0d4a42; border-color:#0d4a42" @click="startEditFromModal(selectedBook)">Sửa</a-button>
+              <a-popconfirm title="Xóa sách này?" ok-text="Xóa" cancel-text="Hủy" ok-type="danger" @confirm="deleteBookFromModal(selectedBook.id)">
+                <a-button danger>Xóa</a-button>
+              </a-popconfirm>
+              <a-button @click="detailOpen = false">Đóng</a-button>
+            </div>
+          </a-col>
+        </a-row>
       </template>
     </a-modal>
 
@@ -186,46 +220,65 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       cancel-text="Hủy"
       @ok="saveBook"
       @cancel="cancelForm"
+      :width="960"
+      :body-style="{ maxHeight: '70vh', overflow: 'auto' }"
     >
-      <a-form :model="form" layout="vertical" style="margin-top: 8px">
-        <a-form-item label="Tên sách" required>
-          <a-input v-model:value="form.tenSach" placeholder="Nhập tên sách" />
-        </a-form-item>
-        <a-form-item label="Tác giả" required>
-          <a-input v-model:value="form.tacGia" placeholder="Nhập tác giả" />
-        </a-form-item>
-        <a-form-item label="Nhà xuất bản" required>
-          <a-input v-model:value="form.nhaSanXuat" placeholder="Nhập nhà xuất bản" />
-        </a-form-item>
-        <a-form-item label="Thể loại">
-          <a-select
-            mode="multiple"
-            v-model:value="form.theLoaiValues"
-            :options="theLoaiOptions"
-            @change="handleTheLoaiChange"
-            @select="handleTheLoaiSelect"
-            placeholder="Chọn thể loại"
-            allow-clear
-          />
-        </a-form-item>
-        <a-form-item label="Số lượng" required>
-          <a-input-number v-model:value="form.soLuong" :min="0" style="width: 100%" />
-        </a-form-item>
-        <a-form-item label="Số bản đã mượn">
-          <a-input-number v-model:value="form.soBanDaMuon" :min="0" style="width: 100%" />
-        </a-form-item>
-        <a-form-item label="ISBN">
-          <a-input v-model:value="form.isbn" placeholder="Nhập ISBN" />
-        </a-form-item>
-        <a-form-item label="Link ảnh bìa">
-          <a-input v-model:value="form.imageUrl" placeholder="Nhập URL ảnh bìa" />
-        </a-form-item>
-        <a-form-item label="Mô tả sách">
-          <a-textarea v-model:value="form.moTa" rows="4" placeholder="Nhập mô tả sách" />
-        </a-form-item>
-        <a-form-item label="Số bản còn lại">
-          <a-input-number :value="formAvailable" disabled style="width: 100%" />
-        </a-form-item>
+      <a-form :model="form" layout="vertical" class="book-form" style="margin-top: 8px">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="Tên sách" required>
+              <a-input v-model:value="form.tenSach" placeholder="Nhập tên sách" />
+            </a-form-item>
+            <a-form-item label="Tác giả" required>
+              <a-input v-model:value="form.tacGia" placeholder="Nhập tác giả" />
+            </a-form-item>
+            <a-form-item label="Nhà xuất bản" required>
+              <a-input v-model:value="form.nhaSanXuat" placeholder="Nhập nhà xuất bản" />
+            </a-form-item>
+            <a-form-item label="ISBN">
+              <a-input v-model:value="form.isbn" placeholder="Nhập ISBN" />
+            </a-form-item>
+          </a-col>
+
+          <a-col :span="12">
+            <a-form-item label="Thể loại">
+              <a-select
+                mode="multiple"
+                v-model:value="form.theLoaiValues"
+                :options="theLoaiOptions"
+                @change="handleTheLoaiChange"
+                @select="handleTheLoaiSelect"
+                placeholder="Chọn thể loại"
+                allow-clear
+              />
+            </a-form-item>
+            <a-form-item label="Số lượng" required>
+              <a-input-number v-model:value="form.soLuong" :min="0" style="width: 100%" />
+            </a-form-item>
+            <a-form-item label="Số bản đã mượn">
+              <a-input-number v-model:value="form.soBanDaMuon" :min="0" style="width: 100%" />
+            </a-form-item>
+            <a-form-item label="Link ảnh bìa">
+              <a-input v-model:value="form.imageUrl" placeholder="Nhập URL ảnh bìa" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-row>
+          <a-col :span="24">
+            <a-form-item label="Mô tả sách">
+              <a-textarea v-model:value="form.moTa" rows="4" placeholder="Nhập mô tả sách" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
+        <a-row>
+          <a-col :span="24">
+            <a-form-item label="Số bản còn lại">
+              <a-input-number :value="formAvailable" disabled style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
       </a-form>
     </a-modal>
 
@@ -246,8 +299,10 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
           />
         </a-form-item>
       </a-form>
-    </a-modal>
+</a-modal>
 
+      </a-layout-content>
+    </a-layout>
   </a-layout>
 </template>
 
@@ -307,6 +362,8 @@ const defaultTheLoaiOptions = [
   { label: 'Giáo trình', value: 'Giáo trình' }
 ]
 
+// categories are derived from defaultTheLoaiOptions + books[].theLoai
+
 const getBookTheLoaiValues = computed(() => {
   const values = new Set()
   books.value.forEach(book => {
@@ -332,21 +389,27 @@ const form = ref({
 
 const categoryOptions = computed(() => {
   const optionMap = new Map()
-  defaultTheLoaiOptions.forEach(opt => optionMap.set(opt.value.toLowerCase(), opt))
-  getBookTheLoaiValues.value.forEach(value => {
-    const normalized = normalizeTheLoai(value)
-    const key = normalized.toLowerCase()
-    if (normalized && !optionMap.has(key)) {
-      optionMap.set(key, { label: normalized, value: normalized })
-    }
+
+  // start from default options
+  defaultTheLoaiOptions.forEach(o => {
+    const normalized = normalizeTheLoai(o.value)
+    if (normalized) optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
   })
+
+  // add categories derived from existing books
+  getBookTheLoaiValues.value.forEach(v => {
+    const normalized = normalizeTheLoai(v)
+    if (normalized) optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
+  })
+
+  // include any currently selected values not yet present
   form.value.theLoaiValues.forEach(value => {
     const normalized = normalizeTheLoai(value)
-    const key = normalized.toLowerCase()
-    if (normalized && normalized.toLowerCase() !== 'khác' && !optionMap.has(key)) {
-      optionMap.set(key, { label: normalized, value: normalized })
+    if (normalized && normalized.toLowerCase() !== 'khác' && !optionMap.has(normalized.toLowerCase())) {
+      optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
     }
   })
+
   return Array.from(optionMap.values())
 })
 
@@ -435,6 +498,11 @@ const handleConfirmOtherCategory = () => {
 
   newCategoryName.value = ''
   isOtherCategoryModalOpen.value = false
+  if (existed) {
+    message.info('Thể loại đã tồn tại, đã tự động chọn')
+  } else {
+    message.success('Đã thêm thể loại mới')
+  }
 }
 
 const handleCancelOtherCategory = () => {
@@ -444,17 +512,17 @@ const handleCancelOtherCategory = () => {
 }
 
 const columns = [
-  { title: 'STT', key: 'stt', width: 40, align: 'center' },
-  { title: 'Mã', key: 'displayId', width: 50, align: 'center' },
-  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 160, sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
-  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 120, sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
-  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 130, sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
-  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 120 },
-  { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 80, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
-  { title: 'Còn', key: 'available', width: 80, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
-  { title: 'Trạng thái', key: 'status', width: 100, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
-  { title: 'Đánh giá', key: 'rating', width: 90, align: 'center' },
-  { title: 'Thao tác', key: 'action', width: 130, fixed: 'right' }
+  { title: 'STT', key: 'stt', width: 50, align: 'center' },
+  { title: 'Mã', key: 'displayId', width: 70, align: 'center' },
+  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 150, sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
+  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 140, sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
+  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 160, sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
+  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 170 },
+  { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
+  { title: 'Còn', key: 'available', width: 60, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
+  { title: 'Trạng thái', key: 'status', width: 110, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
+  { title: 'Đánh giá', key: 'rating', width: 100, align: 'center' },
+  { title: 'Thao tác', key: 'action', width: 180 }
 ]
 
 const loadBooks = async () => {
@@ -641,7 +709,9 @@ const exportToExcel = () => {
   XLSX.writeFile(workbook, 'DanhSachSach.xlsx')
 }
 
-onMounted(loadBooks)
+onMounted(async () => {
+  await loadBooks()
+})
 </script>
 
 <style scoped>
@@ -717,4 +787,48 @@ onMounted(loadBooks)
   border-color: #40a9ff;
   box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.14);
 }
+
+/* Compact form styling for book modal */
+.book-form .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.detail-image-wrapper { width: 100%; display:flex; align-items:center; justify-content:center }
+.detail-image { width: 100%; height: 320px; object-fit: cover; border-radius: 8px }
+
+/* Ensure modal body scrolls internally on smaller screens */
+.ant-modal-body {
+  /* keep default except when inside our specific modals; handled via :body-style binding */
+}
+
+/* Table wrapper to avoid page horizontal scroll */
+.table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto; /* allow table internal scroll if needed */
+}
+
+.cell-theloai {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.rating-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.rating-compact .stars { font-weight: 600 }
+.rating-compact .count { font-size: 12px; color: #666 }
 </style>
