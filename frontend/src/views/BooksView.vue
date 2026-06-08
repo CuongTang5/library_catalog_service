@@ -375,13 +375,14 @@ const isEmbedded = (() => {
   try { return window.self !== window.top } catch { return true }
 })()
 
-// Use the current page host so clients on LAN call the backend on the same server
-const API_URL = `http://${window.location.hostname}:5185/api/books`
-
-// Backend API base (can be overridden by Vite env var)
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost:5185'
+  `http://${window.location.hostname}:5185`
+
+const BOOKS_API_URL = `${API_BASE_URL}/books`
+const CATEGORIES_API_URL = import.meta.env.VITE_API_BASE_URL
+  ? `${API_BASE_URL}/categories`
+  : 'http://163.223.210.87:5185/api/categories'
 
 const books = ref([])
 const search = ref('')
@@ -434,7 +435,7 @@ const categories = ref([])
 
 const loadCategories = async () => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/categories`, {
+    const res = await fetch(CATEGORIES_API_URL, {
       headers: getAuthHeaders()
     })
     if (!res.ok) {
@@ -451,7 +452,7 @@ const loadCategories = async () => {
 
 const fetchCategories = async () => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/categories`, {
+    const res = await fetch(CATEGORIES_API_URL, {
       headers: getAuthHeaders()
     })
     if (!res.ok) {
@@ -471,7 +472,7 @@ const updateCategory = async (id, newName) => {
   if (!name) { message.warning('Tên thể loại không được rỗng'); return }
   if (name.toLowerCase() === 'khác') { message.warning('Tên không hợp lệ'); return }
   try {
-    const res = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+    const res = await fetch(`${CATEGORIES_API_URL}/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ name })
@@ -494,7 +495,7 @@ const updateCategory = async (id, newName) => {
 
 const deleteCategory = async (id) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+    const res = await fetch(`${CATEGORIES_API_URL}/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     })
@@ -634,7 +635,7 @@ const createCategory = async (name) => {
   const normalizedName = (name || '').trim()
   if (!normalizedName) throw new Error('Tên thể loại rỗng')
 
-  const res = await fetch(`${API_BASE_URL}/api/categories`, {
+  const res = await fetch(CATEGORIES_API_URL, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ name: normalizedName })
@@ -727,31 +728,34 @@ const handleAuthCode = async () => {
 }
 
 const loadBooks = async () => {
-  const token = localStorage.getItem('accessToken')
-console.log('TOKEN:', token)
+  try {
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(`${BOOKS_API_URL}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    })
 
-const response = await fetch(`${API_BASE_URL}/api/books`, {
-  method: 'GET',
-  headers: {
-    Authorization: `Bearer ${token}`
-  }
-})
+    if (response.status === 401) {
+      message.error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
+      books.value = []
+      return
+    }
 
-  if (response.status === 401) {
-    message.error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
-    books.value = []
-    return
-  }
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('loadBooks failed', response.status, text)
+      message.error('Lỗi khi tải danh sách sách')
+      books.value = []
+      return
+    }
 
-  if (!response.ok) {
-    const text = await response.text()
-    console.error('loadBooks failed', response.status, text)
+    books.value = await response.json()
+  } catch (error) {
+    console.error('loadBooks error', error)
     message.error('Lỗi khi tải danh sách sách')
     books.value = []
-    return
   }
-
-  books.value = await response.json()
 }
 
 const getAvailable = (book) => book.soLuong - (book.soBanDaMuon ?? 0)
@@ -848,7 +852,7 @@ const saveBook = async () => {
 
     if (editingId.value) {
       payload.id = editingId.value
-      const res = await fetch(`${API_URL}/${editingId.value}`, {
+      const res = await fetch(`${BOOKS_API_URL}/${editingId.value}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
@@ -859,7 +863,7 @@ const saveBook = async () => {
         return
       }
     } else {
-      const res = await fetch(API_URL, {
+      const res = await fetch(BOOKS_API_URL, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
@@ -885,7 +889,7 @@ const saveBook = async () => {
 }
 
 const deleteBook = async (id) => {
-  await fetch(`${API_URL}/${id}`, {
+  await fetch(`${BOOKS_API_URL}/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders()
   })
