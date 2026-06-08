@@ -377,12 +377,12 @@ const isEmbedded = (() => {
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  `http://${window.location.hostname}:5185`
+  `http://${window.location.hostname}:5185/api`
 
 const BOOKS_API_URL = `${API_BASE_URL}/books`
 const CATEGORIES_API_URL = import.meta.env.VITE_API_BASE_URL
-  ? `${API_BASE_URL}/categories`
-  : 'http://163.223.210.87:5185/api/categories'
+  ? `http://${window.location.hostname}:5185/api/categories`
+  : `${API_BASE_URL}/categories`
 
 const books = ref([])
 const search = ref('')
@@ -474,7 +474,9 @@ const updateCategory = async (id, newName) => {
   try {
     const res = await fetch(`${CATEGORIES_API_URL}/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ name })
     })
     if (!res.ok) {
@@ -497,7 +499,9 @@ const deleteCategory = async (id) => {
   try {
     const res = await fetch(`${CATEGORIES_API_URL}/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders()
+      headers: {
+        'Content-Type': 'application/json'
+      }
     })
     if (!res.ok) {
       const txt = await res.text()
@@ -637,7 +641,9 @@ const createCategory = async (name) => {
 
   const res = await fetch(CATEGORIES_API_URL, {
     method: 'POST',
-    headers: getAuthHeaders(),
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ name: normalizedName })
   })
 
