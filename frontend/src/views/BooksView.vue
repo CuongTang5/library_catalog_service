@@ -375,14 +375,17 @@ const isEmbedded = (() => {
   try { return window.self !== window.top } catch { return true }
 })()
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  `http://${window.location.hostname}:5185/api`
+const isVpsHost = window.location.hostname === '163.223.210.87'
+const GATEWAY_BASE_URL = 'http://163.223.210.87:5000'
+const DIRECT_CATALOG_BASE_URL = `http://${window.location.hostname}:5185/api`
 
-const BOOKS_API_URL = `${API_BASE_URL}/books`
-const CATEGORIES_API_URL = import.meta.env.VITE_API_BASE_URL
+const BOOKS_API_URL = isVpsHost
+  ? `${GATEWAY_BASE_URL}/api/catalog/books`
+  : 'http://localhost:5185/api/books'
+
+const CATEGORIES_API_URL = isVpsHost
   ? `http://${window.location.hostname}:5185/api/categories`
-  : `${API_BASE_URL}/categories`
+  : 'http://localhost:5185/api/categories'
 
 const books = ref([])
 const search = ref('')
@@ -438,15 +441,25 @@ const loadCategories = async () => {
     const res = await fetch(CATEGORIES_API_URL, {
       headers: getAuthHeaders()
     })
-    if (!res.ok) {
-      const errorText = await res.text()
-      console.error('Failed to load categories', res.status, errorText)
+
+    if (res.status === 404) {
+      console.warn('Categories API not available; using default category list')
+      categories.value = defaultTheLoaiOptions.map(o => o.value)
       return
     }
+
+    if (!res.ok) {
+      const errorText = await res.text()
+      console.warn('Failed to load categories', res.status, errorText)
+      categories.value = defaultTheLoaiOptions.map(o => o.value)
+      return
+    }
+
     const data = await res.json()
     categories.value = data.map(c => c.name)
   } catch (e) {
-    console.error('Failed to load categories', e)
+    console.warn('Failed to load categories', e)
+    categories.value = defaultTheLoaiOptions.map(o => o.value)
   }
 }
 
@@ -455,15 +468,22 @@ const fetchCategories = async () => {
     const res = await fetch(CATEGORIES_API_URL, {
       headers: getAuthHeaders()
     })
+    if (res.status === 404) {
+      console.warn('Categories API not available for fetchCategories')
+      categoryObjects.value = []
+      return
+    }
     if (!res.ok) {
       const err = await res.text()
-      console.error('fetchCategories failed', res.status, err)
+      console.warn('fetchCategories failed', res.status, err)
+      categoryObjects.value = []
       return
     }
     const data = await res.json()
     categoryObjects.value = data.map(c => ({ id: c.id, name: c.name }))
   } catch (e) {
-    console.error('fetchCategories error', e)
+    console.warn('fetchCategories error', e)
+    categoryObjects.value = []
   }
 }
 
@@ -649,13 +669,17 @@ const createCategory = async (name) => {
 
   if (!res.ok) {
     const errorText = await res.text()
-    console.error('Create category failed', res.status, errorText)
+    console.warn('Create category failed', res.status, errorText)
+    if (res.status === 404) {
+      return { name: normalizedName, fallback: true }
+    }
     const err = new Error(errorText || `HTTP ${res.status}`)
     err.status = res.status
     throw err
   }
 
-  return await res.json()
+  const data = await res.json()
+  return { ...data, fallback: false }
 }
 
 const handleConfirmOtherCategory = async () => {
@@ -670,10 +694,12 @@ const handleConfirmOtherCategory = async () => {
     const data = await createCategory(normalized)
     const returnedName = (data.name || data.Name || normalized).toString()
 
-    // reload categories from server
-    await loadCategories()
+    if (!data.fallback) {
+      await loadCategories()
+    } else {
+      message.warning('API thể loại chưa sẵn sàng, thể loại sẽ lưu cùng sách')
+    }
 
-    // add to selected values
     form.value.theLoaiValues = removeDuplicateTheLoai([
       ...form.value.theLoaiValues,
       returnedName
@@ -684,7 +710,6 @@ const handleConfirmOtherCategory = async () => {
     newCategoryName.value = ''
     isOtherCategoryModalOpen.value = false
   } catch (err) {
-    // err may contain non-JSON body text
     console.error(err)
     const msg = (err && err.message) ? err.message : 'Lỗi khi gọi API thể loại'
     message.error(msg)
