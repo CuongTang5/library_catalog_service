@@ -1,5 +1,6 @@
 using CatalogService.Data;
 using CatalogService.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
@@ -125,6 +126,7 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<object>>> GetBooks()
         {
             var books = await _context.Books

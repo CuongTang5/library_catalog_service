@@ -71,6 +71,9 @@
               <a-button @click="exportToExcel" style="background: #4CAF50; border-color: #4CAF50; color: white">
                 📥 Xuất Excel
               </a-button>
+              <a-button @click="manageCategoriesOpen = true" style="background: #1890ff; border-color: #1890ff; color: white">
+                🗂️ Quản lý thể loại
+              </a-button>
               <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
                 + Thêm sách
               </a-button>
@@ -170,8 +173,10 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       v-model:open="detailOpen"
       :title="selectedBook?.tenSach"
       :footer="null"
-      :width="900"
-      :body-style="{ maxHeight: '70vh', overflow: 'auto' }"
+      centered
+      class="book-detail-modal"
+      :width="880"
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
     >
       <template v-if="selectedBook">
         <a-row gutter="16">
@@ -181,32 +186,37 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
             </div>
           </a-col>
           <a-col :span="16">
-            <a-descriptions :column="1" bordered size="small">
-              <a-descriptions-item label="Mã">{{ getSelectedBookDisplayId() || '-' }}</a-descriptions-item>
-              <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
-              <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
-              <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
-              <a-descriptions-item label="Số lượng">{{ selectedBook.soLuong }}</a-descriptions-item>
-              <a-descriptions-item label="Đã mượn">{{ selectedBook.soBanDaMuon ?? 0 }}</a-descriptions-item>
-              <a-descriptions-item label="Còn lại">{{ getAvailable(selectedBook) }}</a-descriptions-item>
-              <a-descriptions-item label="Trạng thái">
-                <a-tag :color="getAvailable(selectedBook) > 0 ? 'success' : 'error'">
-                  {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item label="Đánh giá">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
-              <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
-              <a-descriptions-item label="Mô tả">{{ selectedBook.moTa || 'Chưa có mô tả' }}</a-descriptions-item>
-            </a-descriptions>
+            <div class="detail-info">
+              <a-descriptions :column="1" size="small" bordered>
+                <a-descriptions-item label="Mã">{{ getSelectedBookDisplayId() || '-' }}</a-descriptions-item>
+                <a-descriptions-item label="Tác giả">{{ selectedBook.tacGia }}</a-descriptions-item>
+                <a-descriptions-item label="Nhà xuất bản">{{ selectedBook.nhaSanXuat }}</a-descriptions-item>
+                <a-descriptions-item label="Thể loại">{{ selectedBook.theLoai || 'Chưa phân loại' }}</a-descriptions-item>
+                <a-descriptions-item label="Số lượng">{{ selectedBook.soLuong }}</a-descriptions-item>
+                <a-descriptions-item label="Đã mượn">{{ selectedBook.soBanDaMuon ?? 0 }}</a-descriptions-item>
+                <a-descriptions-item label="Còn lại">{{ getAvailable(selectedBook) }}</a-descriptions-item>
+                <a-descriptions-item label="Trạng thái">
+                  <a-tag :color="getAvailable(selectedBook) > 0 ? 'success' : 'error'">
+                    {{ getAvailable(selectedBook) > 0 ? 'Có thể mượn' : 'Hết sách' }}
+                  </a-tag>
+                </a-descriptions-item>
+                <a-descriptions-item label="Đánh giá">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
+                <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
+              </a-descriptions>
 
-            <div style="margin-top: 16px; display:flex; justify-content:flex-end; gap:8px">
+                <div class="detail-description">
+                  {{ selectedBook.moTa || 'Chưa có mô tả' }}
+                </div>
+              </div>
+
+              <div style="margin-top: 16px; display:flex; justify-content:flex-end; gap:8px">
               <a-button type="primary" style="background:#0d4a42; border-color:#0d4a42" @click="startEditFromModal(selectedBook)">Sửa</a-button>
               <a-popconfirm title="Xóa sách này?" ok-text="Xóa" cancel-text="Hủy" ok-type="danger" @confirm="deleteBookFromModal(selectedBook.id)">
                 <a-button danger>Xóa</a-button>
               </a-popconfirm>
               <a-button @click="detailOpen = false">Đóng</a-button>
             </div>
-          </a-col>
+            </a-col>
         </a-row>
       </template>
     </a-modal>
@@ -220,8 +230,10 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       cancel-text="Hủy"
       @ok="saveBook"
       @cancel="cancelForm"
-      :width="960"
-      :body-style="{ maxHeight: '70vh', overflow: 'auto' }"
+      centered
+      class="book-form-modal"
+      :width="900"
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
     >
       <a-form :model="form" layout="vertical" class="book-form" style="margin-top: 8px">
         <a-row :gutter="16">
@@ -287,6 +299,9 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       title="Nhập thể loại khác"
       ok-text="Xác nhận"
       cancel-text="Hủy"
+      centered
+      class="category-modal"
+      :width="480"
       @ok="handleConfirmOtherCategory"
       @cancel="handleCancelOtherCategory"
     >
@@ -296,10 +311,52 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
             v-model:value="newCategoryName"
             placeholder="Nhập thể loại mới"
             @keydown.enter.prevent="handleConfirmOtherCategory"
+            autofocus
           />
         </a-form-item>
       </a-form>
 </a-modal>
+
+    <!-- MODAL QUẢN LÝ THỂ LOẠI -->
+    <a-modal
+      v-model:open="manageCategoriesOpen"
+      title="Quản lý thể loại"
+      centered
+      :width="720"
+      @openChange="val => { if (val) { fetchCategories() } }"
+      @cancel="() => { manageCategoriesOpen = false; editCategoryId = null; editCategoryName = '' }"
+      ok-text="Đóng"
+      :footer="null"
+    >
+      <div>
+        <a-list :data-source="categoryObjects">
+          <template #renderItem="{ item }">
+            <a-list-item>
+              <a-row style="width:100%; align-items:center">
+                <a-col :span="16">
+                  <div v-if="editCategoryId !== item.id">{{ item.name }}</div>
+                  <div v-else>
+                    <a-input v-model:value="editCategoryName" />
+                  </div>
+                </a-col>
+                <a-col :span="8" style="text-align:right">
+                  <template v-if="editCategoryId === item.id">
+                    <a-button size="small" type="primary" @click="updateCategory(item.id, editCategoryName)">Lưu</a-button>
+                    <a-button size="small" @click="cancelEditCategory">Hủy</a-button>
+                  </template>
+                  <template v-else>
+                    <a-button size="small" @click="startEditCategory(item)">Sửa</a-button>
+                    <a-popconfirm title="Bạn có chắc muốn xóa?" ok-text="Xóa" cancel-text="Hủy" ok-type="danger" @confirm="() => deleteCategory(item.id)">
+                      <a-button size="small" danger> Xóa </a-button>
+                    </a-popconfirm>
+                  </template>
+                </a-col>
+              </a-row>
+            </a-list-item>
+          </template>
+        </a-list>
+      </div>
+    </a-modal>
 
       </a-layout-content>
     </a-layout>
@@ -310,6 +367,8 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import * as XLSX from 'xlsx'
+import { redeemAuthHandoffCode } from '../utils/authHandoff'
+import { saveAuthSession, getAuthToken } from '../utils/auth'
 
 const isEmbedded = (() => {
   if (new URLSearchParams(window.location.search).get('embed') === 'true') return true
@@ -318,6 +377,11 @@ const isEmbedded = (() => {
 
 // Use the current page host so clients on LAN call the backend on the same server
 const API_URL = `http://${window.location.hostname}:5185/api/books`
+
+// Backend API base (can be overridden by Vite env var)
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  'http://localhost:5185'
 
 const books = ref([])
 const search = ref('')
@@ -347,6 +411,10 @@ const calculateStt = (index) => {
 
 const isOtherCategoryModalOpen = ref(false)
 const newCategoryName = ref('')
+const manageCategoriesOpen = ref(false)
+const categoryObjects = ref([]) // { id, name }
+const editCategoryId = ref(null)
+const editCategoryName = ref('')
 
 const normalizeTheLoai = (value) => (value || '').trim()
 
@@ -361,6 +429,98 @@ const defaultTheLoaiOptions = [
   { label: 'Kinh tế', value: 'Kinh tế' },
   { label: 'Giáo trình', value: 'Giáo trình' }
 ]
+
+const categories = ref([])
+
+const loadCategories = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/categories`, {
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const errorText = await res.text()
+      console.error('Failed to load categories', res.status, errorText)
+      return
+    }
+    const data = await res.json()
+    categories.value = data.map(c => c.name)
+  } catch (e) {
+    console.error('Failed to load categories', e)
+  }
+}
+
+const fetchCategories = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/categories`, {
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const err = await res.text()
+      console.error('fetchCategories failed', res.status, err)
+      return
+    }
+    const data = await res.json()
+    categoryObjects.value = data.map(c => ({ id: c.id, name: c.name }))
+  } catch (e) {
+    console.error('fetchCategories error', e)
+  }
+}
+
+const updateCategory = async (id, newName) => {
+  const name = (newName || '').trim()
+  if (!name) { message.warning('Tên thể loại không được rỗng'); return }
+  if (name.toLowerCase() === 'khác') { message.warning('Tên không hợp lệ'); return }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ name })
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Lỗi cập nhật thể loại')
+      return
+    }
+    await fetchCategories()
+    await loadCategories()
+    message.success('Cập nhật thể loại thành công')
+    editCategoryId.value = null
+    editCategoryName.value = ''
+  } catch (e) {
+    console.error(e)
+    message.error('Lỗi cập nhật thể loại')
+  }
+}
+
+const deleteCategory = async (id) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/categories/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      message.warning(txt || 'Không thể xóa thể loại')
+      return
+    }
+    await fetchCategories()
+    await loadCategories()
+    message.success('Đã xóa thể loại')
+  } catch (e) {
+    console.error(e)
+    message.error('Lỗi xóa thể loại')
+  }
+}
+
+const startEditCategory = (item) => {
+  editCategoryId.value = item.id
+  editCategoryName.value = item.name
+}
+
+const cancelEditCategory = () => {
+  editCategoryId.value = null
+  editCategoryName.value = ''
+}
 
 // categories are derived from defaultTheLoaiOptions + books[].theLoai
 
@@ -388,21 +548,14 @@ const form = ref({
 })
 
 const categoryOptions = computed(() => {
+  const source = (categories.value && categories.value.length > 0) ? categories.value : defaultTheLoaiOptions.map(o => o.value)
   const optionMap = new Map()
-
-  // start from default options
-  defaultTheLoaiOptions.forEach(o => {
-    const normalized = normalizeTheLoai(o.value)
-    if (normalized) optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
-  })
-
-  // add categories derived from existing books
-  getBookTheLoaiValues.value.forEach(v => {
+  source.forEach(v => {
     const normalized = normalizeTheLoai(v)
     if (normalized) optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
   })
 
-  // include any currently selected values not yet present
+  // include any currently selected values not yet present (to avoid losing selections)
   form.value.theLoaiValues.forEach(value => {
     const normalized = normalizeTheLoai(value)
     if (normalized && normalized.toLowerCase() !== 'khác' && !optionMap.has(normalized.toLowerCase())) {
@@ -477,7 +630,28 @@ const handleTheLoaiSelect = (value) => {
   }
 }
 
-const handleConfirmOtherCategory = () => {
+const createCategory = async (name) => {
+  const normalizedName = (name || '').trim()
+  if (!normalizedName) throw new Error('Tên thể loại rỗng')
+
+  const res = await fetch(`${API_BASE_URL}/api/categories`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name: normalizedName })
+  })
+
+  if (!res.ok) {
+    const errorText = await res.text()
+    console.error('Create category failed', res.status, errorText)
+    const err = new Error(errorText || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+
+  return await res.json()
+}
+
+const handleConfirmOtherCategory = async () => {
   const normalized = normalizeTheLoai(newCategoryName.value)
 
   if (!normalized) {
@@ -485,23 +659,28 @@ const handleConfirmOtherCategory = () => {
     return
   }
 
-  const existed = categoryOptions.value.find(
-    item => item.value.toLowerCase() === normalized.toLowerCase()
-  )
+  try {
+    const data = await createCategory(normalized)
+    const returnedName = (data.name || data.Name || normalized).toString()
 
-  const finalValue = existed ? existed.value : normalized
+    // reload categories from server
+    await loadCategories()
 
-  form.value.theLoaiValues = removeDuplicateTheLoai([
-    ...form.value.theLoaiValues,
-    finalValue
-  ])
+    // add to selected values
+    form.value.theLoaiValues = removeDuplicateTheLoai([
+      ...form.value.theLoaiValues,
+      returnedName
+    ])
 
-  newCategoryName.value = ''
-  isOtherCategoryModalOpen.value = false
-  if (existed) {
-    message.info('Thể loại đã tồn tại, đã tự động chọn')
-  } else {
     message.success('Đã thêm thể loại mới')
+
+    newCategoryName.value = ''
+    isOtherCategoryModalOpen.value = false
+  } catch (err) {
+    // err may contain non-JSON body text
+    console.error(err)
+    const msg = (err && err.message) ? err.message : 'Lỗi khi gọi API thể loại'
+    message.error(msg)
   }
 }
 
@@ -525,9 +704,54 @@ const columns = [
   { title: 'Thao tác', key: 'action', width: 180 }
 ]
 
+const getAuthHeaders = () => {
+  const token = getAuthToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  }
+}
+
+const handleAuthCode = async () => {
+  const code = new URLSearchParams(window.location.search).get('code')
+  if (!code) return
+
+  try {
+    const session = await redeemAuthHandoffCode(code)
+    saveAuthSession(session)
+    window.history.replaceState({}, '', window.location.pathname)
+  } catch (error) {
+    console.error('Redeem code failed:', error)
+    message.error('Lỗi xác thực: ' + (error.message || 'Không xác định'))
+  }
+}
+
 const loadBooks = async () => {
-  const res = await fetch(API_URL)
-  books.value = await res.json()
+  const token = localStorage.getItem('accessToken')
+console.log('TOKEN:', token)
+
+const response = await fetch(`${API_BASE_URL}/api/books`, {
+  method: 'GET',
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
+})
+
+  if (response.status === 401) {
+    message.error('Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
+    books.value = []
+    return
+  }
+
+  if (!response.ok) {
+    const text = await response.text()
+    console.error('loadBooks failed', response.status, text)
+    message.error('Lỗi khi tải danh sách sách')
+    books.value = []
+    return
+  }
+
+  books.value = await response.json()
 }
 
 const getAvailable = (book) => book.soLuong - (book.soBanDaMuon ?? 0)
@@ -626,7 +850,7 @@ const saveBook = async () => {
       payload.id = editingId.value
       const res = await fetch(`${API_URL}/${editingId.value}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       })
       if (!res.ok) {
@@ -637,7 +861,7 @@ const saveBook = async () => {
     } else {
       const res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       })
       if (!res.ok) {
@@ -661,7 +885,10 @@ const saveBook = async () => {
 }
 
 const deleteBook = async (id) => {
-  await fetch(`${API_URL}/${id}`, { method: 'DELETE' })
+  await fetch(`${API_URL}/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  })
   await loadBooks()
 }
 
@@ -710,7 +937,9 @@ const exportToExcel = () => {
 }
 
 onMounted(async () => {
+  await handleAuthCode()
   await loadBooks()
+  await loadCategories()
 })
 </script>
 
@@ -792,6 +1021,40 @@ onMounted(async () => {
 .book-form .ant-form-item {
   margin-bottom: 8px;
 }
+
+/* Modal specific styling */
+.book-form-modal .ant-modal-content,
+.book-detail-modal .ant-modal-content,
+.category-modal .ant-modal-content {
+  border-radius: 12px;
+}
+
+.book-form-modal .ant-form-item,
+.book-form-modal .book-form .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.book-form-modal .ant-modal-body {
+  padding: 16px 24px;
+}
+
+.book-detail-modal .detail-image-wrapper { width: 100%; display:flex; align-items:center; justify-content:center }
+.book-detail-modal .detail-image { width: 300px; height: 420px; object-fit: cover; border-radius: 14px }
+.book-detail-modal .detail-info { padding-left: 12px }
+.book-detail-modal .detail-description {
+  margin-top: 12px;
+  max-height: 3.6em; /* ~3 lines */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.category-modal .ant-modal-body { padding: 12px 20px }
+.category-modal .ant-input { width: 100%; }
+
+.ant-modal-footer { display:flex; justify-content:flex-end }
 
 .detail-image-wrapper { width: 100%; display:flex; align-items:center; justify-content:center }
 .detail-image { width: 100%; height: 320px; object-fit: cover; border-radius: 8px }
