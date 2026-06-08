@@ -202,12 +202,11 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
             mode="multiple"
             v-model:value="form.theLoaiValues"
             :options="theLoaiOptions"
+            @change="handleTheLoaiChange"
+            @select="handleTheLoaiSelect"
             placeholder="Chọn thể loại"
             allow-clear
           />
-        </a-form-item>
-        <a-form-item v-if="form.theLoaiValues.includes('Khác')" label="Nhập thể loại khác">
-          <a-input v-model:value="form.theLoaiKhac" placeholder="Nhập thể loại khác" />
         </a-form-item>
         <a-form-item label="Số lượng" required>
           <a-input-number v-model:value="form.soLuong" :min="0" style="width: 100%" />
@@ -230,11 +229,31 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       </a-form>
     </a-modal>
 
+    <a-modal
+      v-model:open="isOtherCategoryModalOpen"
+      title="Nhập thể loại khác"
+      ok-text="Xác nhận"
+      cancel-text="Hủy"
+      @ok="handleConfirmOtherCategory"
+      @cancel="handleCancelOtherCategory"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="Thể loại mới" required>
+          <a-input
+            v-model:value="newCategoryName"
+            placeholder="Nhập thể loại mới"
+            @keydown.enter.prevent="handleConfirmOtherCategory"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
   </a-layout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { message } from 'ant-design-vue'
 import * as XLSX from 'xlsx'
 
 const isEmbedded = (() => {
@@ -271,19 +290,33 @@ const calculateStt = (index) => {
   return (pagination.value.current - 1) * pagination.value.pageSize + index + 1
 }
 
-const theLoaiOptions = [
-  { label: 'Văn học Việt Nam', value: 'Văn học Việt Nam' },
-  { label: 'Văn học nước ngoài', value: 'Văn học nước ngoài' },
-  { label: 'Thiếu nhi', value: 'Thiếu nhi' },
+const isOtherCategoryModalOpen = ref(false)
+const newCategoryName = ref('')
+
+const normalizeTheLoai = (value) => (value || '').trim()
+
+const defaultTheLoaiOptions = [
   { label: 'Truyện ngắn', value: 'Truyện ngắn' },
   { label: 'Tiểu thuyết', value: 'Tiểu thuyết' },
+  { label: 'Văn học Việt Nam', value: 'Văn học Việt Nam' },
+  { label: 'Thiếu nhi', value: 'Thiếu nhi' },
   { label: 'Kỹ năng sống', value: 'Kỹ năng sống' },
   { label: 'Công nghệ thông tin', value: 'Công nghệ thông tin' },
   { label: 'Khoa học', value: 'Khoa học' },
   { label: 'Kinh tế', value: 'Kinh tế' },
-  { label: 'Giáo trình', value: 'Giáo trình' },
-  { label: 'Khác', value: 'Khác' }
+  { label: 'Giáo trình', value: 'Giáo trình' }
 ]
+
+const getBookTheLoaiValues = computed(() => {
+  const values = new Set()
+  books.value.forEach(book => {
+    const items = (book.theLoai || '').split(',').map(item => normalizeTheLoai(item)).filter(Boolean)
+    items.forEach(item => {
+      if (item !== 'Khác') values.add(item)
+    })
+  })
+  return Array.from(values)
+})
 
 const form = ref({
   tenSach: '',
@@ -294,42 +327,120 @@ const form = ref({
   imageUrl: '',
   moTa: '',
   isbn: '',
-  theLoaiValues: [],
-  theLoaiKhac: ''
+  theLoaiValues: []
 })
 
+const categoryOptions = computed(() => {
+  const optionMap = new Map()
+  defaultTheLoaiOptions.forEach(opt => optionMap.set(opt.value.toLowerCase(), opt))
+  getBookTheLoaiValues.value.forEach(value => {
+    const normalized = normalizeTheLoai(value)
+    const key = normalized.toLowerCase()
+    if (normalized && !optionMap.has(key)) {
+      optionMap.set(key, { label: normalized, value: normalized })
+    }
+  })
+  form.value.theLoaiValues.forEach(value => {
+    const normalized = normalizeTheLoai(value)
+    const key = normalized.toLowerCase()
+    if (normalized && normalized.toLowerCase() !== 'khác' && !optionMap.has(key)) {
+      optionMap.set(key, { label: normalized, value: normalized })
+    }
+  })
+  return Array.from(optionMap.values())
+})
+
+const theLoaiOptions = computed(() => [
+  ...categoryOptions.value,
+  { label: 'Khác', value: 'Khác' }
+])
+
+const findExistingTheLoai = (value) => {
+  const normalized = normalizeTheLoai(value).toLowerCase()
+  if (!normalized) return null
+  return categoryOptions.value.find(item => item.value.trim().toLowerCase() === normalized)?.value || null
+}
+
 const buildTheLoaiPayload = () => {
-  const selected = Array.isArray(form.value.theLoaiValues) ? form.value.theLoaiValues : []
-  const mainValues = selected.filter(item => item !== 'Khác')
-  const otherValue = form.value.theLoaiKhac?.trim() || ''
-  const list = [...mainValues]
-  if (selected.includes('Khác') && otherValue) {
-    list.push(otherValue)
-  }
-  return list.filter(Boolean).join(', ')
+  return removeDuplicateTheLoai(form.value.theLoaiValues || []).join(', ')
 }
 
 const parseTheLoaiString = (value) => {
-  const raw = (value || '').split(',').map(item => item.trim()).filter(Boolean)
-  const known = []
-  const unknown = []
-  const optionValues = theLoaiOptions.map(opt => opt.value).filter(val => val !== 'Khác')
+  const rawItems = (value || '').split(',').map(item => normalizeTheLoai(item)).filter(Boolean)
+  const uniqueValues = []
+  rawItems.forEach(item => {
+    const existing = findExistingTheLoai(item) || item
+    if (!uniqueValues.some(v => v.toLowerCase() === existing.toLowerCase())) {
+      uniqueValues.push(existing)
+    }
+  })
+  return { theLoaiValues: uniqueValues }
+}
 
-  raw.forEach(item => {
-    if (optionValues.includes(item)) {
-      known.push(item)
-    } else {
-      unknown.push(item)
+const removeDuplicateTheLoai = (list) => {
+  const map = new Map()
+
+  list.forEach(item => {
+    const normalized = normalizeTheLoai(item)
+    if (!normalized) return
+
+    const key = normalized.toLowerCase()
+    if (!map.has(key)) {
+      map.set(key, normalized)
     }
   })
 
-  const theLoaiValues = [...new Set(known)]
-  const theLoaiKhac = unknown.join(', ')
-  if (theLoaiKhac && !theLoaiValues.includes('Khác')) {
-    theLoaiValues.push('Khác')
+  return Array.from(map.values())
+}
+
+const handleTheLoaiChange = (values) => {
+  if (!Array.isArray(values)) {
+    form.value.theLoaiValues = []
+    return
   }
 
-  return { theLoaiValues, theLoaiKhac }
+  form.value.theLoaiValues = removeDuplicateTheLoai(
+    values
+      .map(item => normalizeTheLoai(item))
+      .filter(item => item && item.toLowerCase() !== 'khác')
+  )
+}
+
+const handleTheLoaiSelect = (value) => {
+  if (value === 'Khác') {
+    form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
+    newCategoryName.value = ''
+    isOtherCategoryModalOpen.value = true
+  }
+}
+
+const handleConfirmOtherCategory = () => {
+  const normalized = normalizeTheLoai(newCategoryName.value)
+
+  if (!normalized) {
+    message.warning('Vui lòng nhập thể loại')
+    return
+  }
+
+  const existed = categoryOptions.value.find(
+    item => item.value.toLowerCase() === normalized.toLowerCase()
+  )
+
+  const finalValue = existed ? existed.value : normalized
+
+  form.value.theLoaiValues = removeDuplicateTheLoai([
+    ...form.value.theLoaiValues,
+    finalValue
+  ])
+
+  newCategoryName.value = ''
+  isOtherCategoryModalOpen.value = false
+}
+
+const handleCancelOtherCategory = () => {
+  newCategoryName.value = ''
+  isOtherCategoryModalOpen.value = false
+  form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
 }
 
 const columns = [
@@ -393,9 +504,9 @@ const resetForm = () => {
     imageUrl: '',
     moTa: '',
     isbn: '',
-    theLoaiValues: [],
-    theLoaiKhac: ''
+    theLoaiValues: []
   }
+  handleCancelOtherCategory()
 }
 
 const startAdd = () => {
@@ -416,8 +527,7 @@ const startEdit = (book) => {
     imageUrl: book.imageUrl || '',
     moTa: book.moTa || '',
     isbn: book.isbn || '',
-    theLoaiValues: parsed.theLoaiValues,
-    theLoaiKhac: parsed.theLoaiKhac
+    theLoaiValues: parsed.theLoaiValues
   }
   formOpen.value = true
 }
@@ -588,5 +698,23 @@ onMounted(loadBooks)
 
 :deep(.ant-layout-sider-trigger) {
   background: #0a3830;
+}
+
+.category-option-input-wrapper {
+  padding: 8px 12px;
+}
+
+.category-option-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  outline: none;
+  font-size: 13px;
+}
+
+.category-option-input:focus {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.14);
 }
 </style>
