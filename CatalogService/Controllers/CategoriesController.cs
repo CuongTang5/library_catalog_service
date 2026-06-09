@@ -77,28 +77,56 @@ namespace CatalogService.Controllers
             return Ok(cat);
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        [HttpGet("{id:int}/usage")]
+        public async Task<IActionResult> GetUsage(int id)
         {
             var cat = await _db.Categories.FindAsync(id);
             if (cat == null) return NotFound();
 
-            // Check if any book uses this category in its TheLoai field (comma-separated)
-            var booksWithTheLoai = await _db.Books
-                .Where(b => b.TheLoai != null)
-                .ToListAsync();
+            var nameToCheck = cat.Name.Trim();
+            var books = await _db.Books.Where(b => b.TheLoai != null).ToListAsync();
+            var usedBy = books
+                .Where(b => (b.TheLoai ?? string.Empty)
+                    .Split(',')
+                    .Select(x => x.Trim())
+                    .Any(x => string.Equals(x, nameToCheck, StringComparison.OrdinalIgnoreCase)))
+                .Select(b => b.TenSach)
+                .ToList();
+
+            return Ok(new { isUsed = usedBy.Count > 0, bookNames = usedBy });
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id, [FromQuery] bool force = false)
+        {
+            var cat = await _db.Categories.FindAsync(id);
+            if (cat == null) return NotFound();
 
             var nameToCheck = cat.Name.Trim();
-            var isUsed = booksWithTheLoai.Any(b =>
+            var books = await _db.Books.Where(b => b.TheLoai != null).ToListAsync();
+            var usedBooks = books.Where(b =>
                 (b.TheLoai ?? string.Empty)
                     .Split(',')
                     .Select(x => x.Trim())
-                    .Any(x => string.Equals(x, nameToCheck, StringComparison.OrdinalIgnoreCase))
-            );
+                    .Any(x => string.Equals(x, nameToCheck, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
 
-            if (isUsed)
+            if (usedBooks.Count > 0 && !force)
             {
-                return BadRequest("Thể loại đang được sử dụng, không thể xóa");
+                return Conflict(new { message = "Thể loại đang được sử dụng", bookNames = usedBooks.Select(b => b.TenSach) });
+            }
+
+            if (usedBooks.Count > 0 && force)
+            {
+                foreach (var book in usedBooks)
+                {
+                    var parts = (book.TheLoai ?? string.Empty)
+                        .Split(',')
+                        .Select(x => x.Trim())
+                        .Where(x => !string.Equals(x, nameToCheck, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    book.TheLoai = parts.Count > 0 ? string.Join(", ", parts) : "Chưa phân loại";
+                }
             }
 
             _db.Categories.Remove(cat);

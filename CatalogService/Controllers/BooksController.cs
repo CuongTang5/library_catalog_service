@@ -129,10 +129,34 @@ namespace CatalogService.Controllers
         [Authorize]
         public async Task<ActionResult<IEnumerable<object>>> GetBooks()
         {
-            var books = await _context.Books
+            var books = await _context.Books.ToListAsync();
+            var bookIds = books.Select(b => b.Id).ToList();
+            var allReviews = await _context.Reviews
+                .Where(r => bookIds.Contains(r.BookId))
+                .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
+            var reviewsByBook = allReviews.GroupBy(r => r.BookId)
+                .ToDictionary(g => g.Key, g => g.Take(3).ToList());
 
-            return Ok(books.Select(MapToBookResponse));
+            return Ok(books.Select(b =>
+            {
+                Descriptions.TryGetValue(b.TenSach ?? string.Empty, out var desc);
+                var mota = !string.IsNullOrWhiteSpace(b.MoTa) ? b.MoTa
+                    : !string.IsNullOrWhiteSpace(desc) ? desc
+                    : $"Tác phẩm {b.TenSach} của tác giả {b.TacGia}.";
+                var imageUrl = !string.IsNullOrWhiteSpace(b.ImageUrl)
+                    ? b.ImageUrl : $"https://picsum.photos/seed/book-{b.Id}/300/450";
+                reviewsByBook.TryGetValue(b.Id, out var latest);
+                return (object)new
+                {
+                    b.Id, b.TenSach, b.TacGia, b.NhaSanXuat,
+                    b.SoLuong, b.SoBanDaMuon, b.SoBanConLai, b.TrangThai,
+                    imageUrl, moTa = mota, isbn = b.Isbn, theLoai = b.TheLoai,
+                    danhGiaTrungBinh = b.DanhGiaTrungBinh,
+                    soLuotDanhGia = b.SoLuotDanhGia,
+                    latestReviews = (latest ?? new()).Select(MapReview)
+                };
+            }));
         }
 
         [HttpGet("products")]
@@ -160,11 +184,30 @@ namespace CatalogService.Controllers
         public async Task<ActionResult<object>> GetBook(int id)
         {
             var book = await _context.Books.FindAsync(id);
-            if (book is null)
+            if (book is null) return NotFound();
+
+            var latest = await _context.Reviews
+                .Where(r => r.BookId == id)
+                .OrderByDescending(r => r.CreatedAt)
+                .Take(3)
+                .ToListAsync();
+
+            Descriptions.TryGetValue(book.TenSach ?? string.Empty, out var desc);
+            var mota = !string.IsNullOrWhiteSpace(book.MoTa) ? book.MoTa
+                : !string.IsNullOrWhiteSpace(desc) ? desc
+                : $"Tác phẩm {book.TenSach} của tác giả {book.TacGia}.";
+            var imageUrl = !string.IsNullOrWhiteSpace(book.ImageUrl)
+                ? book.ImageUrl : $"https://picsum.photos/seed/book-{book.Id}/300/450";
+
+            return Ok(new
             {
-                return NotFound();
-            }
-            return Ok(MapToBookResponse(book));
+                book.Id, book.TenSach, book.TacGia, book.NhaSanXuat,
+                book.SoLuong, book.SoBanDaMuon, book.SoBanConLai, book.TrangThai,
+                imageUrl, moTa = mota, isbn = book.Isbn, theLoai = book.TheLoai,
+                danhGiaTrungBinh = book.DanhGiaTrungBinh,
+                soLuotDanhGia = book.SoLuotDanhGia,
+                latestReviews = latest.Select(MapReview)
+            });
         }
 
         [HttpPost]
@@ -290,6 +333,116 @@ namespace CatalogService.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(existingBook);
+        }
+
+        public class ReviewRequest
+        {
+            public string? UserId { get; set; }
+            public string? CardNumber { get; set; }
+            public string? Username { get; set; }
+            public string? FullName { get; set; }
+            public int Rating { get; set; }
+            public string? Comment { get; set; }
+            public DateTime CreatedAt { get; set; }
+        }
+
+        private static object MapReview(Models.Review r) => new
+        {
+            r.Id,
+            r.BookId,
+            r.UserId,
+            r.CardNumber,
+            username = r.Username,
+            fullName = r.FullName,
+            r.Rating,
+            r.Comment,
+            r.CreatedAt
+        };
+
+        [HttpGet("{id:int}/reviews")]
+        public async Task<ActionResult<IEnumerable<object>>> GetReviews(int id)
+        {
+            if (!await _context.Books.AnyAsync(b => b.Id == id))
+                return NotFound();
+
+            var reviews = await _context.Reviews
+                .Where(r => r.BookId == id)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToListAsync();
+
+            return Ok(reviews.Select(MapReview));
+        }
+
+        [HttpPost("{id:int}/reviews")]
+        public async Task<ActionResult<object>> AddReview(int id, [FromBody] ReviewRequest request)
+        {
+            if (request.Rating < 0 || request.Rating > 5)
+                return BadRequest("Rating must be between 0 and 5.");
+
+            var book = await _context.Books.FindAsync(id);
+            if (book is null) return NotFound();
+
+            _context.Reviews.Add(new Models.Review
+            {
+                BookId = id,
+                UserId = request.UserId,
+                CardNumber = request.CardNumber,
+                Username = request.Username,
+                FullName = request.FullName,
+                Rating = request.Rating,
+                Comment = request.Comment,
+                CreatedAt = request.CreatedAt == default ? DateTime.UtcNow : request.CreatedAt
+            });
+
+            var newCount = book.SoLuotDanhGia + 1;
+            book.DanhGiaTrungBinh = ((book.DanhGiaTrungBinh * book.SoLuotDanhGia) + request.Rating) / newCount;
+            book.SoLuotDanhGia = newCount;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Review saved",
+                bookId = id,
+                averageRating = book.DanhGiaTrungBinh,
+                reviewCount = book.SoLuotDanhGia
+            });
+        }
+
+        public class WriteOffRequest
+        {
+            public int Quantity { get; set; }
+            public string? Reason { get; set; }
+            public string? Note { get; set; }
+        }
+
+        [HttpPost("{id:int}/write-off")]
+        public async Task<ActionResult<object>> WriteOffBook(int id, [FromBody] WriteOffRequest request)
+        {
+            if (request.Quantity <= 0)
+                return BadRequest("Quantity must be greater than 0.");
+
+            var book = await _context.Books.FindAsync(id);
+            if (book is null) return NotFound();
+
+            if (request.Quantity > book.SoLuong)
+                return BadRequest("Quantity exceeds total book count.");
+
+            book.SoLuong -= request.Quantity;
+            if (book.SoBanDaMuon > 0)
+                book.SoBanDaMuon = Math.Max(0, book.SoBanDaMuon - request.Quantity);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Book written off",
+                bookId = id,
+                quantity = request.Quantity,
+                reason = request.Reason,
+                totalQuantity = book.SoLuong,
+                availableQuantity = book.SoBanConLai
+            });
         }
 
         [HttpDelete("{id:int}")]

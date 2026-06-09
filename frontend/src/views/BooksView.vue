@@ -361,10 +361,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
                   </template>
                   <template v-else>
                     <a-button size="small" @click="startEditCategory(item)">Sửa</a-button>
-                    <a-popconfirm title="Bạn có chắc muốn xóa?" ok-text="Xóa" cancel-text="Hủy" ok-type="danger" @confirm="() => deleteCategory(item.id)">
-                      <a-button size="small" danger> Xóa </a-button>
-                    </a-popconfirm>
-                  </template>
+                    <a-button size="small" danger @click="deleteCategory(item.id)">Xóa</a-button>                  </template>
                 </a-col>
               </a-row>
             </a-list-item>
@@ -380,7 +377,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import * as XLSX from 'xlsx'
 import { redeemAuthHandoffCode } from '../utils/authHandoff'
 import { saveAuthSession, getAuthToken } from '../utils/auth'
@@ -536,20 +533,44 @@ const updateCategory = async (id, newName) => {
 
 const deleteCategory = async (id) => {
   try {
-    const res = await fetch(`${CATEGORIES_API_URL}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-    if (!res.ok) {
-      const txt = await res.text()
-      message.warning(txt || 'Không thể xóa thể loại')
-      return
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken')
+    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+
+    const usageRes = await fetch(`${CATEGORIES_API_URL}/${id}/usage`, { headers })
+    if (!usageRes.ok) { message.error('Không thể kiểm tra thể loại'); return }
+    const usage = await usageRes.json()
+
+    const doDelete = async (force) => {
+      const url = `${CATEGORIES_API_URL}/${id}${force ? '?force=true' : ''}`
+      const res = await fetch(url, { method: 'DELETE', headers })
+      if (!res.ok) { const txt = await res.text(); message.warning(txt || 'Không thể xóa thể loại'); return }
+      await fetchCategories()
+      await loadCategories()
+      message.success('Đã xóa thể loại')
     }
-    await fetchCategories()
-    await loadCategories()
-    message.success('Đã xóa thể loại')
+
+    if (!usage.isUsed) {
+      Modal.confirm({
+        title: 'Xác nhận xóa',
+        content: 'Bạn có chắc muốn xóa thể loại này không?',
+        okText: 'Xóa',
+        cancelText: 'Hủy',
+        okType: 'danger',
+        zIndex: 4000,
+        onOk: () => doDelete(false)
+      })
+    } else {
+      const names = usage.bookNames.join(', ')
+      Modal.confirm({
+        title: 'Thể loại đang được sử dụng',
+        content: `Sách '${names}' đang được sử dụng thể loại này. Bạn có muốn xóa không?`,
+        okText: 'Xóa',
+        cancelText: 'Hủy',
+        okType: 'danger',
+        zIndex: 4000,
+        onOk: () => doDelete(true)
+      })
+    }
   } catch (e) {
     console.error(e)
     message.error('Lỗi xóa thể loại')

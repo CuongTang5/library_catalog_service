@@ -12,6 +12,7 @@ namespace CatalogService.Data
 
         public DbSet<Book> Books => Set<Book>();
         public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Review> Reviews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

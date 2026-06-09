@@ -7,6 +7,7 @@ D:\fullstack\btl\CatalogService\bin\Debug\net8.0\CatalogService.pdb
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Azure.Core.dll
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Azure.Identity.dll
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Humanizer.dll
+D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Microsoft.Bcl.AsyncInterfaces.dll
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Microsoft.CodeAnalysis.dll
 D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Microsoft.CodeAnalysis.CSharp.dll
@@ -134,4 +135,3 @@ D:\fullstack\btl\CatalogService\obj\Debug\net8.0\refint\CatalogService.dll
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.pdb
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.genruntimeconfig.cache
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\ref\CatalogService.dll
-D:\fullstack\btl\CatalogService\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
