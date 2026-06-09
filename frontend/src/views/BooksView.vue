@@ -71,9 +71,11 @@
               <a-button @click="exportToExcel" style="background: #4CAF50; border-color: #4CAF50; color: white">
                 📥 Xuất Excel
               </a-button>
-              <a-button @click="manageCategoriesOpen = true" style="background: #1890ff; border-color: #1890ff; color: white">
-                🗂️ Quản lý thể loại
-              </a-button>
+              <a-button
+  @click="() => { manageCategoriesOpen = true; fetchCategories() }"
+>
+  🗂️ Quản lý thể loại
+</a-button>
               <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
                 + Thêm sách
               </a-button>
@@ -320,14 +322,23 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
     <!-- MODAL QUẢN LÝ THỂ LOẠI -->
     <a-modal
       v-model:open="manageCategoriesOpen"
-      title="Quản lý thể loại"
       centered
       :width="720"
       @openChange="val => { if (val) { fetchCategories() } }"
       @cancel="() => { manageCategoriesOpen = false; editCategoryId = null; editCategoryName = '' }"
-      ok-text="Đóng"
       :footer="null"
     >
+      <template #title>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-right:32px">
+          <span>Quản lý thể loại</span>
+          <a-button
+            size="small"
+            type="primary"
+            style="background:#0d4a42; border-color:#0d4a42"
+            @click="() => { addingCategoryFromManager = true; newCategoryName = ''; isOtherCategoryModalOpen = true }"
+          >+ Thêm thể loại</a-button>
+        </div>
+      </template>
       <div>
         <a-list :data-source="categoryObjects">
           <template #renderItem="{ item }">
@@ -364,7 +375,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import * as XLSX from 'xlsx'
 import { redeemAuthHandoffCode } from '../utils/authHandoff'
@@ -415,8 +426,10 @@ const calculateStt = (index) => {
 
 const isOtherCategoryModalOpen = ref(false)
 const newCategoryName = ref('')
+const addingCategoryFromManager = ref(false)
 const manageCategoriesOpen = ref(false)
 const categoryObjects = ref([]) // { id, name }
+watch(manageCategoriesOpen, (val) => { if (val) fetchCategories() })
 const editCategoryId = ref(null)
 const editCategoryName = ref('')
 
@@ -456,6 +469,7 @@ const loadCategories = async () => {
     }
 
     const data = await res.json()
+    console.log('categories loaded', data)
     categories.value = data.map(c => c.name)
   } catch (e) {
     console.warn('Failed to load categories', e)
@@ -480,6 +494,7 @@ const fetchCategories = async () => {
       return
     }
     const data = await res.json()
+    console.log('categories loaded', data)
     categoryObjects.value = data.map(c => ({ id: c.id, name: c.name }))
   } catch (e) {
     console.warn('fetchCategories error', e)
@@ -691,24 +706,33 @@ const handleConfirmOtherCategory = async () => {
   }
 
   try {
-    const data = await createCategory(normalized)
-    const returnedName = (data.name || data.Name || normalized).toString()
-
-    if (!data.fallback) {
+    if (addingCategoryFromManager.value) {
+      await createCategory(normalized)
+      await fetchCategories()
       await loadCategories()
+      newCategoryName.value = ''
+      isOtherCategoryModalOpen.value = false
+      addingCategoryFromManager.value = false
+      message.success('Đã thêm thể loại mới')
     } else {
-      message.warning('API thể loại chưa sẵn sàng, thể loại sẽ lưu cùng sách')
+      const data = await createCategory(normalized)
+      const returnedName = (data.name || data.Name || normalized).toString()
+
+      if (!data.fallback) {
+        await loadCategories()
+      } else {
+        message.warning('API thể loại chưa sẵn sàng, thể loại sẽ lưu cùng sách')
+      }
+
+      form.value.theLoaiValues = removeDuplicateTheLoai([
+        ...form.value.theLoaiValues,
+        returnedName
+      ])
+
+      message.success('Đã thêm thể loại mới')
+      newCategoryName.value = ''
+      isOtherCategoryModalOpen.value = false
     }
-
-    form.value.theLoaiValues = removeDuplicateTheLoai([
-      ...form.value.theLoaiValues,
-      returnedName
-    ])
-
-    message.success('Đã thêm thể loại mới')
-
-    newCategoryName.value = ''
-    isOtherCategoryModalOpen.value = false
   } catch (err) {
     console.error(err)
     const msg = (err && err.message) ? err.message : 'Lỗi khi gọi API thể loại'
@@ -719,6 +743,7 @@ const handleConfirmOtherCategory = async () => {
 const handleCancelOtherCategory = () => {
   newCategoryName.value = ''
   isOtherCategoryModalOpen.value = false
+  addingCategoryFromManager.value = false
   form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
 }
 
