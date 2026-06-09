@@ -27,7 +27,25 @@ builder.Services
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret!)),
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine("[JWT] AuthFailed: " + context.Exception);
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                Console.WriteLine("[JWT] Challenge: " + context.Error + " - " + context.ErrorDescription);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine("[JWT] Token validated: " + context.Principal?.Identity?.Name);
+                return Task.CompletedTask;
+            }
         };
     });
 

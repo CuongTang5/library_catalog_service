@@ -235,6 +235,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       centered
       class="book-form-modal"
       :width="900"
+      :z-index="1000"
       :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
     >
       <a-form :model="form" layout="vertical" class="book-form" style="margin-top: 8px">
@@ -304,6 +305,8 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       centered
       class="category-modal"
       :width="480"
+      :z-index="3000"
+      get-container="body"
       @ok="handleConfirmOtherCategory"
       @cancel="handleCancelOtherCategory"
     >
@@ -324,6 +327,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       v-model:open="manageCategoriesOpen"
       centered
       :width="720"
+      :z-index="1100"
       @openChange="val => { if (val) { fetchCategories() } }"
       @cancel="() => { manageCategoriesOpen = false; editCategoryId = null; editCategoryName = '' }"
       :footer="null"
@@ -769,6 +773,28 @@ const getAuthHeaders = () => {
   }
 }
 
+const sendReportEvent = async (eventType, title) => {
+  try {
+    const token =
+      localStorage.getItem('token') ||
+      localStorage.getItem('accessToken')
+    await fetch('http://163.223.210.87:5000/api/identity/Report/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        eventType,
+        data: { title, username: 'admin' },
+        sourceService: 'CatalogService'
+      })
+    })
+  } catch (err) {
+    console.warn('sendReportEvent failed', err)
+  }
+}
+
 const handleAuthCode = async () => {
   const code = new URLSearchParams(window.location.search).get('code')
   if (!code) return
@@ -918,6 +944,7 @@ const saveBook = async () => {
         console.error('PUT failed:', res.status, err)
         return
       }
+      await sendReportEvent('book.updated', payload.tenSach || payload.title)
     } else {
       const res = await fetch(BOOKS_API_URL, {
         method: 'POST',
@@ -929,6 +956,7 @@ const saveBook = async () => {
         console.error('POST failed:', res.status, err)
         return
       }
+      await sendReportEvent('book.added', payload.tenSach || payload.title)
     }
 
     formOpen.value = false
@@ -949,6 +977,10 @@ const deleteBook = async (id) => {
     method: 'DELETE',
     headers: getAuthHeaders()
   })
+  await sendReportEvent(
+    'book.deleted',
+    selectedBook.value?.tenSach || selectedBook.value?.title || `ID ${id}`
+  )
   await loadBooks()
 }
 
