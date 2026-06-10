@@ -218,6 +218,76 @@ namespace CatalogService.Controllers
             return CreatedAtAction(nameof(GetBook), new { id = book.Id }, book);
         }
 
+        public class BookImportRequest
+        {
+            public string? TenSach { get; set; }
+            public string? TacGia { get; set; }
+            public string? NhaSanXuat { get; set; }
+            public string? TheLoai { get; set; }
+            public int SoLuong { get; set; }
+            public int SoBanDaMuon { get; set; }
+            public string? Isbn { get; set; }
+            public string? MoTa { get; set; }
+            public string? ImageUrl { get; set; }
+        }
+
+        [HttpPost("import")]
+        public async Task<ActionResult<object>> ImportBooks([FromBody] List<BookImportRequest>? items)
+        {
+            if (items is null)
+            {
+                return BadRequest("Danh sách sách không hợp lệ.");
+            }
+
+            var imported = 0;
+            var skipped = 0;
+            var booksToAdd = new List<Book>();
+
+            foreach (var item in items)
+            {
+                var tenSach = item?.TenSach?.Trim();
+                if (string.IsNullOrWhiteSpace(tenSach))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var tacGia = string.IsNullOrWhiteSpace(item?.TacGia) ? "Chưa rõ" : item!.TacGia!.Trim();
+                var nhaSanXuat = string.IsNullOrWhiteSpace(item?.NhaSanXuat) ? "Chưa rõ" : item!.NhaSanXuat!.Trim();
+                var theLoai = string.IsNullOrWhiteSpace(item?.TheLoai) ? "Chưa phân loại" : item!.TheLoai!.Trim();
+                var soLuong = item?.SoLuong > 0 ? item.SoLuong : 1;
+                var soBanDaMuon = item?.SoBanDaMuon >= 0 ? item.SoBanDaMuon : 0;
+
+                if (soBanDaMuon > soLuong)
+                {
+                    soBanDaMuon = 0;
+                }
+
+                booksToAdd.Add(new Book
+                {
+                    TenSach = tenSach,
+                    TacGia = tacGia,
+                    NhaSanXuat = nhaSanXuat,
+                    TheLoai = theLoai,
+                    SoLuong = soLuong,
+                    SoBanDaMuon = soBanDaMuon,
+                    Isbn = item?.Isbn?.Trim(),
+                    MoTa = item?.MoTa?.Trim(),
+                    ImageUrl = item?.ImageUrl?.Trim()
+                });
+
+                imported++;
+            }
+
+            if (booksToAdd.Count > 0)
+            {
+                _context.Books.AddRange(booksToAdd);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new { imported, skipped });
+        }
+
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateBook(int id, Book book)
         {

@@ -19,6 +19,10 @@
           <span class="menu-icon">📚</span>
           <span>Danh mục Sách (NT)</span>
         </RouterLink>
+        <RouterLink to="/stock-imports" class="menu-item" active-class="active">
+          <span class="menu-icon">📦</span>
+          <span>Nhập kho</span>
+        </RouterLink>
         <button class="menu-item">
           <span class="menu-icon">📜</span>
           <span>Quy tắc mượn trả</span>

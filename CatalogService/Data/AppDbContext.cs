@@ -13,6 +13,8 @@ namespace CatalogService.Data
         public DbSet<Book> Books => Set<Book>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Review> Reviews { get; set; }
+        public DbSet<StockImportReceipt> StockImportReceipts { get; set; }
+        public DbSet<StockImportItem> StockImportItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -71,6 +73,30 @@ namespace CatalogService.Data
                 new Category { Id = 37, Name = "Truyện tranh" },
                 new Category { Id = 38, Name = "Light Novel" }
             );
+
+            // StockImportReceipt configuration
+            modelBuilder.Entity<StockImportReceipt>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+                entity.HasMany(e => e.Items)
+                    .WithOne(i => i.Receipt)
+                    .HasForeignKey(i => i.ReceiptId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // StockImportItem configuration
+            modelBuilder.Entity<StockImportItem>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Condition).IsRequired().HasMaxLength(20);
+                entity.HasOne(e => e.Book)
+                    .WithMany()
+                    .HasForeignKey(e => e.BookId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
         }
     }
 }

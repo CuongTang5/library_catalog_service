@@ -29,8 +29,12 @@
             Overview Dashboard
           </a-menu-item>
           <a-menu-item key="books">
-            <template #icon><span>�</span></template>
+            <template #icon><span>📚</span></template>
             Danh mục Sách (NT)
+          </a-menu-item>
+          <a-menu-item key="stock-imports" @click="$router.push('/stock-imports')">
+            <template #icon><span>📦</span></template>
+            Nhập kho
           </a-menu-item>
           <a-menu-item key="rules" disabled>
             <template #icon><span>📜</span></template>
@@ -71,6 +75,19 @@
               <a-button @click="exportToExcel" style="background: #4CAF50; border-color: #4CAF50; color: white">
                 📥 Xuất Excel
               </a-button>
+              <a-button :loading="isImporting" @click="triggerImportExcel" style="background: #2196F3; border-color: #2196F3; color: white">
+                📤 Nhập Excel
+              </a-button>
+              <a-button @click="$router.push('/stock-imports')" style="background: #ff9800; border-color: #ff9800; color: white">
+                📦 Nhập kho
+              </a-button>
+              <input
+                ref="excelFileInput"
+                type="file"
+                accept=".xlsx,.xls"
+                style="display: none"
+                @change="handleExcelFileChange"
+              />
               <a-button
   @click="() => { manageCategoriesOpen = true; fetchCategories() }"
 >
@@ -83,14 +100,29 @@
           </a-col>
         </a-row>
 
-        <!-- SEARCH -->
-        <a-input-search
-          v-model:value="search"
-placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
-          style="margin-bottom: 20px; max-width: 500px"
-          size="large"
-          allow-clear
-        />
+        <!-- BULK ACTION BAR -->
+        <div v-if="selectedRowKeys.length > 0" class="selected-toolbar">
+          <div class="selected-info">
+            <CheckCircleOutlined />
+            <span>✓ {{ selectedRowKeys.length }} sách được chọn</span>
+          </div>
+
+          <a-space>
+            <a-button danger type="primary" @click="deleteSelectedBooks">
+              <template #icon>
+                <DeleteOutlined />
+              </template>
+              Xóa đã chọn
+            </a-button>
+
+            <a-button @click="clearSelection">
+              <template #icon>
+                <CloseOutlined />
+              </template>
+              Bỏ chọn
+            </a-button>
+          </a-space>
+        </div>
 
         <!-- TABLE -->
         <div class="table-wrapper">
@@ -98,6 +130,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
             :columns="columns"
             :data-source="filteredBooks"
             :row-key="r => r.id"
+            :row-selection="rowSelection"
             :pagination="paginationConfig"
             @change="handleTableChange"
             size="middle"
@@ -282,7 +315,7 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
         <a-row>
           <a-col :span="24">
             <a-form-item label="Mô tả sách">
-              <a-textarea v-model:value="form.moTa" rows="4" placeholder="Nhập mô tả sách" />
+              <a-textarea v-model:value="form.moTa" :rows="4" placeholder="Nhập mô tả sách" />
             </a-form-item>
           </a-col>
         </a-row>
@@ -322,6 +355,40 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
       </a-form>
 </a-modal>
 
+    <a-modal
+      v-model:open="categoryDetailOpen"
+      :title="selectedCategory ? `Chi tiết thể loại: ${selectedCategory.name}` : 'Chi tiết thể loại'"
+      :confirm-loading="categoryDetailLoading"
+      ok-text="Đóng"
+      cancel-text="Đóng"
+      @ok="categoryDetailOpen = false"
+      @cancel="categoryDetailOpen = false"
+      centered
+      class="category-detail-modal"
+      :width="560"
+      :z-index="1200"
+      :body-style="{ maxHeight: '60vh', overflowY: 'auto' }"
+    >
+      <template v-if="selectedCategory">
+        <div v-if="categoryDetailLoading" style="min-height: 120px; display:flex; align-items:center; justify-content:center">
+          Đang tải...
+        </div>
+        <div v-else>
+          <div v-if="categoryBooks.length > 0">
+            <p>Đang được sử dụng bởi {{ categoryBooks.length }} sách</p>
+            <ol style="padding-left: 18px; margin: 0">
+              <li v-for="(bookName, index) in categoryBooks" :key="index" style="margin-bottom: 8px">
+                {{ bookName }}
+              </li>
+            </ol>
+          </div>
+          <div v-else>
+            Hiện chưa có sách nào sử dụng thể loại này.
+          </div>
+        </div>
+      </template>
+    </a-modal>
+
     <!-- MODAL QUẢN LÝ THỂ LOẠI -->
     <a-modal
       v-model:open="manageCategoriesOpen"
@@ -360,8 +427,12 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
                     <a-button size="small" @click="cancelEditCategory">Hủy</a-button>
                   </template>
                   <template v-else>
-                    <a-button size="small" @click="startEditCategory(item)">Sửa</a-button>
-                    <a-button size="small" danger @click="deleteCategory(item.id)">Xóa</a-button>                  </template>
+                    <a-space size="small">
+                      <a-button size="small" @click="showCategoryDetail(item)">Chi tiết</a-button>
+                      <a-button size="small" @click="startEditCategory(item)">Sửa</a-button>
+                      <a-button size="small" danger @click="deleteCategory(item.id)">Xóa</a-button>
+                    </a-space>
+                  </template>
                 </a-col>
               </a-row>
             </a-list-item>
@@ -376,8 +447,14 @@ placeholder="Tìm kiếm sách, tác giả, nhà xuất bản..."
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { message, Modal } from 'ant-design-vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, h } from 'vue'
+import { message, Modal, Input, Button, Space, Popover } from 'ant-design-vue'
+import {
+  SearchOutlined,
+  DeleteOutlined,
+  CloseOutlined,
+  CheckCircleOutlined
+} from '@ant-design/icons-vue'
 import * as XLSX from 'xlsx'
 import { redeemAuthHandoffCode } from '../utils/authHandoff'
 import { saveAuthSession, getAuthToken } from '../utils/auth'
@@ -408,6 +485,135 @@ const selectedBook = ref(null)
 const saving = ref(false)
 const collapsed = ref(false)
 const pagination = ref({ current: 1, pageSize: 10 })
+const selectedRowKeys = ref([])
+const excelFileInput = ref(null)
+const isImporting = ref(false)
+
+const selectedBooks = computed(() =>
+  books.value.filter(book => selectedRowKeys.value.includes(book.id))
+)
+
+const triggerImportExcel = () => {
+  if (isImporting.value) {
+    return
+  }
+  excelFileInput.value?.click()
+}
+
+const importBooks = async (items) => {
+  const res = await fetch(`${BOOKS_API_URL}/import`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(items)
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+
+  return await res.json()
+}
+
+const getExcelCell = (row, keys) => {
+  for (const key of keys) {
+    const value = row[key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim()
+    }
+  }
+  return ''
+}
+
+const handleExcelFileChange = async (event) => {
+  const input = event.target
+  if (!input?.files?.length) {
+    return
+  }
+
+  const file = input.files[0]
+  input.value = ''
+  isImporting.value = true
+
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+
+    if (!worksheet) {
+      throw new Error('Không tìm thấy sheet đầu tiên trong file Excel.')
+    }
+
+    const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
+    const itemsToImport = []
+
+    for (const row of rows) {
+      const tenSach = getExcelCell(row, ['Tên sách', 'Ten sach', 'TenSach'])
+      if (!tenSach) {
+        continue
+      }
+
+      const tacGia = getExcelCell(row, ['Tác giả', 'Tac gia', 'TacGia']) || 'Chưa rõ'
+      const nhaSanXuat = getExcelCell(row, ['NXB', 'Nha san xuat', 'NhaSanXuat']) || 'Chưa rõ'
+      const theLoai = getExcelCell(row, ['Thể loại', 'The loai', 'TheLoai']) || 'Chưa phân loại'
+      const soLuongRaw = getExcelCell(row, ['Số lượng', 'So luong', 'SoLuong'])
+      const soBanDaMuonRaw = getExcelCell(row, ['Đã mượn', 'Da muon', 'DaMuon', 'So ban da muon'])
+      const isbn = getExcelCell(row, ['ISBN', 'Isbn'])
+      const moTa = getExcelCell(row, ['Mô tả', 'Mo ta', 'MoTa'])
+      const imageUrl = getExcelCell(row, ['Link ảnh', 'Link ảnh', 'Link ảnh'])
+
+      const soLuong = Number.isFinite(Number(soLuongRaw)) && Number(soLuongRaw) > 0
+        ? Math.trunc(Number(soLuongRaw))
+        : 1
+      let soBanDaMuon = Number.isFinite(Number(soBanDaMuonRaw)) && Number(soBanDaMuonRaw) >= 0
+        ? Math.trunc(Number(soBanDaMuonRaw))
+        : 0
+
+      if (soBanDaMuon > soLuong) {
+        soBanDaMuon = 0
+      }
+
+      itemsToImport.push({
+        tenSach,
+        tacGia,
+        nhaSanXuat,
+        theLoai,
+        soLuong,
+        soBanDaMuon,
+        isbn,
+        moTa,
+        imageUrl
+      })
+    }
+
+    if (itemsToImport.length === 0) {
+      message.warning('Không tìm thấy dòng sách hợp lệ trong file Excel.')
+      return
+    }
+
+    const result = await importBooks(itemsToImport)
+    message.success(`Đã nhập thành công ${result.imported ?? itemsToImport.length} sách. Bỏ qua ${result.skipped ?? 0} dòng.`)
+    await loadBooks()
+  } catch (err) {
+    console.error('Import Excel failed', err)
+    message.error(err?.message || 'Lỗi khi nhập Excel')
+  } finally {
+    isImporting.value = false
+  }
+}
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: keys => {
+    selectedRowKeys.value = keys
+  }
+}))
+
+const clearSelection = () => {
+  selectedRowKeys.value = []
+}
+
 
 const paginationConfig = computed(() => ({
   current: pagination.value.current,
@@ -429,6 +635,10 @@ const isOtherCategoryModalOpen = ref(false)
 const newCategoryName = ref('')
 const addingCategoryFromManager = ref(false)
 const manageCategoriesOpen = ref(false)
+const categoryDetailOpen = ref(false)
+const categoryDetailLoading = ref(false)
+const categoryBooks = ref([])
+const selectedCategory = ref(null)
 const categoryObjects = ref([]) // { id, name }
 watch(manageCategoriesOpen, (val) => { if (val) fetchCategories() })
 const editCategoryId = ref(null)
@@ -585,6 +795,34 @@ const startEditCategory = (item) => {
 const cancelEditCategory = () => {
   editCategoryId.value = null
   editCategoryName.value = ''
+}
+
+const showCategoryDetail = async (category) => {
+  selectedCategory.value = category
+  categoryDetailOpen.value = true
+  categoryDetailLoading.value = true
+  categoryBooks.value = []
+
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken')
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
+    const res = await fetch(`${CATEGORIES_API_URL}/${category.id}/usage`, { headers })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    categoryBooks.value = Array.isArray(data.bookNames) ? data.bookNames : []
+  } catch (err) {
+    console.error('Category usage load failed', err)
+    message.error('Không thể tải chi tiết thể loại')
+    categoryBooks.value = []
+  } finally {
+    categoryDetailLoading.value = false
+  }
 }
 
 // categories are derived from defaultTheLoaiOptions + books[].theLoai
@@ -772,16 +1010,117 @@ const handleCancelOtherCategory = () => {
   form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
 }
 
+const columnFilters = reactive({
+  tenSach: '',
+  tacGia: '',
+  nhaSanXuat: '',
+  theLoai: '',
+  status: ''
+})
+
+const resetColumnFilter = (key) => {
+  columnFilters[key] = ''
+}
+
+const getColumnTitle = (title, key, placeholder) => {
+  const isActive = !!columnFilters[key]
+  return h('span', { class: 'column-title' }, [
+    h('span', { class: 'column-title-text' }, title),
+    h(Popover, {
+      trigger: 'click',
+      placement: 'bottomRight',
+      overlayClassName: 'column-search-popover'
+    }, {
+      content: () => getSearchDropdown(key, placeholder),
+      default: () => h('span', { class: 'column-search-wrap', onClick: e => e.stopPropagation() }, [
+        h(SearchOutlined, {
+          class: ['column-search-icon', { active: isActive }]
+        })
+      ])
+    })
+  ])
+}
+
+const getSearchDropdown = (key, placeholder) => {
+  const titleText = placeholder.replace(/^Tìm theo\s*/i, '')
+  return h('div', { class: 'search-dropdown-box' }, [
+    h('div', { class: 'search-dropdown-title' }, `Tìm kiếm theo ${titleText}`),
+    h(Input, {
+      value: columnFilters[key],
+      placeholder,
+      allowClear: true,
+      autofocus: true,
+      style: { width: '100%' },
+      onChange: e => { columnFilters[key] = e.target.value },
+      onPressEnter: () => {}
+    }),
+    h(Space, { style: { marginTop: '12px', display: 'flex', justifyContent: 'flex-end' } }, () => [
+      h(Button, {
+        size: 'small',
+        onClick: () => resetColumnFilter(key)
+      }, () => 'Đặt lại'),
+      h(Button, {
+        type: 'primary',
+        size: 'small'
+      }, () => 'Tìm kiếm')
+    ])
+  ])
+}
+
 const columns = [
   { title: 'STT', key: 'stt', width: 50, align: 'center' },
   { title: 'Mã', key: 'displayId', width: 70, align: 'center' },
-  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 150, sorter: (a, b) => a.tenSach.localeCompare(b.tenSach) },
-  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 140, sorter: (a, b) => a.tacGia.localeCompare(b.tacGia) },
-  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 160, sorter: (a, b) => a.nhaSanXuat.localeCompare(b.nhaSanXuat) },
-  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', sorter: (a, b) => (a.theLoai || '').localeCompare(b.theLoai || ''), width: 170 },
+  {
+    title: () => getColumnTitle('Tên sách', 'tenSach', 'Tìm theo tên sách'),
+    dataIndex: 'tenSach',
+    key: 'tenSach',
+    width: 190,
+    sorter: (a, b) =>
+      (a.tenSach || '').localeCompare(b.tenSach || ''),
+    onHeaderCell: () => ({ style: { width: '100%' } })
+  },
+  {
+    title: () => getColumnTitle('Tác giả', 'tacGia', 'Tìm theo tác giả'),
+    dataIndex: 'tacGia',
+    key: 'tacGia',
+    width: 170,
+    sorter: (a, b) =>
+      (a.tacGia || '').localeCompare(b.tacGia || ''),
+    onHeaderCell: () => ({ style: { width: '100%' } })
+  },
+  {
+    title: () => getColumnTitle('NXB', 'nhaSanXuat', 'Tìm theo nhà xuất bản'),
+    dataIndex: 'nhaSanXuat',
+    key: 'nhaSanXuat',
+    width: 170,
+    sorter: (a, b) =>
+      (a.nhaSanXuat || '').localeCompare(b.nhaSanXuat || ''),
+    onHeaderCell: () => ({ style: { width: '100%' } })
+  },
+  {
+    title: () => getColumnTitle('Thể loại', 'theLoai', 'Tìm theo thể loại'),
+    dataIndex: 'theLoai',
+    key: 'theLoai',
+    width: 190,
+    sorter: (a, b) =>
+      (a.theLoai || '').localeCompare(b.theLoai || ''),
+    onHeaderCell: () => ({ style: { width: '100%' } })
+  },
   { title: 'SL', dataIndex: 'soLuong', key: 'soLuong', width: 60, align: 'center', sorter: (a, b) => a.soLuong - b.soLuong },
   { title: 'Còn', key: 'available', width: 60, align: 'center', sorter: (a, b) => getAvailable(a) - getAvailable(b) },
-  { title: 'Trạng thái', key: 'status', width: 110, filters: [{ text: 'Có thể mượn', value: true }, { text: 'Hết sách', value: false }], onFilter: (value, record) => (getAvailable(record) > 0) === value },
+  {
+  title: 'Trạng thái',
+  key: 'status',
+  width: 110,
+  filters: [
+    { text: 'Có thể mượn', value: 'available' },
+    { text: 'Hết sách', value: 'out' }
+  ],
+  onFilter: (value, record) => {
+    const available = getAvailable(record) > 0
+    return value === 'available' ? available : !available
+  }
+},
   { title: 'Đánh giá', key: 'rating', width: 100, align: 'center' },
   { title: 'Thao tác', key: 'action', width: 180 }
 ]
@@ -882,13 +1221,22 @@ const getSelectedBookDisplayId = () => {
 const formAvailable = computed(() => (form.value.soLuong ?? 0) - (form.value.soBanDaMuon ?? 0))
 
 const filteredBooks = computed(() => {
-  const q = search.value.toLowerCase()
-  return books.value.filter(b =>
-    b.tenSach?.toLowerCase().includes(q) ||
-    b.tacGia?.toLowerCase().includes(q) ||
-    b.nhaSanXuat?.toLowerCase().includes(q) ||
-    (b.theLoai || '').toLowerCase().includes(q)
-  )
+  const matchText = (value, keyword) => {
+    if (!keyword) return true
+    return String(value ?? '').toLowerCase().includes(keyword.toLowerCase())
+  }
+
+  return books.value.filter(book => {
+    const statusText = getAvailable(book) > 0 ? 'Có thể mượn' : 'Hết sách'
+
+    return (
+      matchText(book.tenSach, columnFilters.tenSach) &&
+      matchText(book.tacGia, columnFilters.tacGia) &&
+      matchText(book.nhaSanXuat, columnFilters.nhaSanXuat) &&
+      matchText(book.theLoai, columnFilters.theLoai) &&
+      matchText(statusText, columnFilters.status)
+    )
+  })
 })
 
 const openModal = (book) => { selectedBook.value = book; detailOpen.value = true }
@@ -1010,6 +1358,31 @@ const deleteBookFromModal = async (id) => {
   detailOpen.value = false
 }
 
+const deleteSelectedBooks = () => {
+  if (selectedRowKeys.value.length === 0) return
+
+  Modal.confirm({
+    title: 'Xóa các sách đã chọn?',
+    content: `Bạn có chắc muốn xóa ${selectedRowKeys.value.length} sách đã chọn không?`,
+    okText: 'Xóa',
+    cancelText: 'Hủy',
+    okType: 'danger',
+    zIndex: 4000,
+    async onOk() {
+      for (const book of selectedBooks.value) {
+        await fetch(`${BOOKS_API_URL}/${book.id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        })
+        await sendReportEvent('book.deleted', book.tenSach || book.title || `ID ${book.id}`)
+      }
+      clearSelection()
+      await loadBooks()
+      message.success('Đã xóa các sách đã chọn')
+    }
+  })
+}
+
 const exportToExcel = () => {
   // Lấy toàn bộ dữ liệu từ filteredBooks (có tính đến tìm kiếm)
   const dataToExport = filteredBooks.value.map((book, index) => ({
@@ -1053,6 +1426,11 @@ onMounted(async () => {
   await handleAuthCode()
   await loadBooks()
   await loadCategories()
+  window.addEventListener('stock-imports-updated', loadBooks)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('stock-imports-updated', loadBooks)
 })
 </script>
 
@@ -1161,6 +1539,7 @@ onMounted(async () => {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
@@ -1172,11 +1551,6 @@ onMounted(async () => {
 .detail-image-wrapper { width: 100%; display:flex; align-items:center; justify-content:center }
 .detail-image { width: 100%; height: 320px; object-fit: cover; border-radius: 8px }
 
-/* Ensure modal body scrolls internally on smaller screens */
-.ant-modal-body {
-  /* keep default except when inside our specific modals; handled via :body-style binding */
-}
-
 /* Table wrapper to avoid page horizontal scroll */
 .table-wrapper {
   width: 100%;
@@ -1187,6 +1561,7 @@ onMounted(async () => {
 .cell-theloai {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1207,4 +1582,86 @@ onMounted(async () => {
 
 .rating-compact .stars { font-weight: 600 }
 .rating-compact .count { font-size: 12px; color: #666 }
+.selected-toolbar {
+  margin-bottom: 16px;
+  padding: 16px 20px;
+  background: #f6ffed;
+  border: 1px solid #d9f7be;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.selected-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #135200;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  white-space: nowrap;
+}
+
+:deep(.ant-table-filter-trigger) {
+  margin-left: 8px;
+  color: #bfbfbf;
+}
+
+:deep(.ant-table-filter-trigger:hover) {
+  color: #1677ff;
+  background: #e6f4ff;
+}
+
+.ant-pro-search-icon {
+  font-size: 14px;
+  color: #bfbfbf;
+}
+
+:deep(.ant-table-filter-trigger:hover .ant-pro-search-icon) {
+  color: #1677ff;
+}
+
+.ant-pro-search-icon.active {
+  color: #1677ff;
+}
+
+.search-dropdown-box {
+  padding: 10px;
+  width: 240px;
+}
+
+.column-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.column-title-text {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.column-search-icon {
+  color: #bfbfbf;
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: 8px;
+  margin-right: 8px;
+  padding: 3px;
+  border-radius: 6px;
+  transition: all .2s ease;
+}
+
+.column-search-icon:hover,
+.column-search-icon.active {
+  color: #1677ff;
+  background: #e6f4ff;
+}
+
 </style>
