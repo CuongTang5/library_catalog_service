@@ -15,6 +15,9 @@ namespace CatalogService.Data
         public DbSet<Review> Reviews { get; set; }
         public DbSet<StockImportReceipt> StockImportReceipts { get; set; }
         public DbSet<StockImportItem> StockImportItems { get; set; }
+        public DbSet<InventoryBook> InventoryBooks => Set<InventoryBook>();
+        public DbSet<InventoryImportReceipt> InventoryImportReceipts => Set<InventoryImportReceipt>();
+        public DbSet<InventoryImportReceiptItem> InventoryImportReceiptItems => Set<InventoryImportReceiptItem>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -96,6 +99,35 @@ namespace CatalogService.Data
                     .WithMany()
                     .HasForeignKey(e => e.BookId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<InventoryBook>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.TenSach).IsRequired();
+                entity.Property(e => e.SoLuongTonKho).IsRequired();
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            modelBuilder.Entity<InventoryImportReceipt>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Code).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.CreatedBy).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.Source).IsRequired().HasMaxLength(20);
+                entity.HasMany(e => e.Items)
+                    .WithOne(i => i.Receipt)
+                    .HasForeignKey(i => i.ReceiptId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InventoryImportReceiptItem>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.HasOne(e => e.InventoryBook)
+                    .WithMany()
+                    .HasForeignKey(e => e.InventoryBookId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

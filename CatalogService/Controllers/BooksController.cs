@@ -302,17 +302,59 @@ namespace CatalogService.Controllers
                 return NotFound();
             }
 
+            // Giữ nguyên SoBanDaMuon hiện có
+            var currentBorrowed = existingBook.SoBanDaMuon;
+            if (book.SoLuong < currentBorrowed)
+            {
+                return BadRequest("Không thể giảm số lượng thấp hơn số bản đang được mượn.");
+            }
+
+            int diff = book.SoLuong - existingBook.SoLuong;
+            if (diff != 0)
+            {
+                InventoryBook? inventoryBook = null;
+                var matchIsbn = !string.IsNullOrWhiteSpace(existingBook.Isbn) ? existingBook.Isbn.Trim() : book.Isbn?.Trim();
+                var matchTenSach = !string.IsNullOrWhiteSpace(existingBook.TenSach) ? existingBook.TenSach.Trim() : book.TenSach?.Trim();
+
+                if (!string.IsNullOrWhiteSpace(matchIsbn))
+                {
+                    inventoryBook = await _context.InventoryBooks
+                        .FirstOrDefaultAsync(b => b.Isbn != null && b.Isbn.Trim().ToLower() == matchIsbn.ToLower());
+                }
+                if (inventoryBook == null && !string.IsNullOrWhiteSpace(matchTenSach))
+                {
+                    inventoryBook = await _context.InventoryBooks
+                        .FirstOrDefaultAsync(b => b.TenSach.Trim().ToLower() == matchTenSach.ToLower());
+                }
+
+                if (inventoryBook == null)
+                {
+                    return BadRequest("Không tìm thấy sách tương ứng trong kho nhập.");
+                }
+
+                if (diff > 0)
+                {
+                    if (inventoryBook.SoLuongTonKho < diff)
+                    {
+                        return BadRequest("Số lượng vượt quá tồn kho");
+                    }
+                    inventoryBook.SoLuongTonKho -= diff;
+                }
+                else // diff < 0
+                {
+                    inventoryBook.SoLuongTonKho += Math.Abs(diff);
+                }
+            }
+
+            // Chỉ cho sửa TenSach, TacGia, NhaSanXuat, TheLoai, ImageUrl, MoTa, Isbn, SoLuong
             existingBook.TenSach = book.TenSach;
             existingBook.TacGia = book.TacGia;
             existingBook.NhaSanXuat = book.NhaSanXuat;
-            existingBook.SoLuong = book.SoLuong;
-            existingBook.SoBanDaMuon = book.SoBanDaMuon;
+            existingBook.TheLoai = book.TheLoai;
             existingBook.ImageUrl = book.ImageUrl;
             existingBook.MoTa = book.MoTa;
             existingBook.Isbn = book.Isbn;
-            existingBook.TheLoai = book.TheLoai;
-            existingBook.DanhGiaTrungBinh = book.DanhGiaTrungBinh;
-            existingBook.SoLuotDanhGia = book.SoLuotDanhGia;
+            existingBook.SoLuong = book.SoLuong;
 
             await _context.SaveChangesAsync();
             return NoContent();

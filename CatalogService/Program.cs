@@ -72,6 +72,61 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     dbContext.Database.Migrate();
+
+    // Tự động đồng bộ sách từ Books sang InventoryBooks nếu InventoryBooks trống
+    try
+    {
+        if (!dbContext.InventoryBooks.Any() && dbContext.Books.Any())
+        {
+            var books = dbContext.Books.ToList();
+            var uniqueInventoryBooks = new List<CatalogService.Models.InventoryBook>();
+
+            foreach (var book in books)
+            {
+                var isbn = book.Isbn?.Trim();
+                var tenSach = book.TenSach?.Trim();
+                if (string.IsNullOrWhiteSpace(tenSach)) continue;
+
+                CatalogService.Models.InventoryBook? existing = null;
+                if (!string.IsNullOrWhiteSpace(isbn))
+                {
+                    existing = uniqueInventoryBooks.FirstOrDefault(b => b.Isbn != null && b.Isbn.Trim().Equals(isbn, StringComparison.OrdinalIgnoreCase));
+                }
+                if (existing == null)
+                {
+                    existing = uniqueInventoryBooks.FirstOrDefault(b => b.TenSach.Trim().Equals(tenSach, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (existing != null)
+                {
+                    existing.SoLuongTonKho += book.SoLuong;
+                }
+                else
+                {
+                    uniqueInventoryBooks.Add(new CatalogService.Models.InventoryBook
+                    {
+                        TenSach = book.TenSach ?? string.Empty,
+                        TacGia = book.TacGia ?? "Chưa rõ",
+                        NhaSanXuat = book.NhaSanXuat ?? "Chưa rõ",
+                        TheLoai = book.TheLoai ?? "Chưa phân loại",
+                        SoLuongTonKho = book.SoLuong,
+                        ImageUrl = book.ImageUrl,
+                        MoTa = book.MoTa,
+                        Isbn = book.Isbn,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            dbContext.InventoryBooks.AddRange(uniqueInventoryBooks);
+            dbContext.SaveChanges();
+            Console.WriteLine($"[Sync] Successfully synchronized {uniqueInventoryBooks.Count} unique books to InventoryBooks on startup.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("[Sync] Error synchronizing books to InventoryBooks: " + ex.Message);
+    }
 }
 
 app.UseCors("AllowAll");

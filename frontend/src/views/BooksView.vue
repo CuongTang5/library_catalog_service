@@ -67,36 +67,26 @@
           <a-col>
             <a-space>
               <a-button v-if="!isEmbedded" @click="$router.push('/')">← Quay lại</a-button>
-              <a-typography-title :level="3" style="margin: 0">Kho sách</a-typography-title>
+              <a-typography-title :level="3" style="margin: 0">Danh mục sách</a-typography-title>
             </a-space>
           </a-col>
           <a-col>
-            <a-space>
+            <div class="header-actions">
               <a-button @click="exportToExcel" style="background: #4CAF50; border-color: #4CAF50; color: white">
                 📥 Xuất Excel
               </a-button>
-              <a-button :loading="isImporting" @click="triggerImportExcel" style="background: #2196F3; border-color: #2196F3; color: white">
-                📤 Nhập Excel
-              </a-button>
-              <a-button @click="$router.push('/stock-imports')" style="background: #ff9800; border-color: #ff9800; color: white">
-                📦 Nhập kho
-              </a-button>
-              <input
-                ref="excelFileInput"
-                type="file"
-                accept=".xlsx,.xls"
-                style="display: none"
-                @change="handleExcelFileChange"
-              />
               <a-button
-  @click="() => { manageCategoriesOpen = true; fetchCategories() }"
->
-  🗂️ Quản lý thể loại
-</a-button>
-              <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
-                + Thêm sách
+                @click="() => { manageCategoriesOpen = true; fetchCategories() }"
+              >
+                🗂️ Quản lý thể loại
               </a-button>
-            </a-space>
+              <a-button type="primary" style="background: #0d4a42; border-color: #0d4a42" @click="startAdd">
+                + Nhập kho
+              </a-button>
+              <a-button @click="openInventoryModal" style="background: #ff9800; border-color: #ff9800; color: white">
+                📦 Kho nhập
+              </a-button>
+            </div>
           </a-col>
         </a-row>
 
@@ -259,7 +249,7 @@
     <!-- MODAL FORM THÊM/SỬA -->
     <a-modal
       v-model:open="formOpen"
-      :title="editingId ? 'Sửa sách' : 'Thêm sách'"
+      :title="editingId ? 'Sửa sách' : 'Nhập kho'"
       :confirm-loading="saving"
       ok-text="Lưu"
       cancel-text="Hủy"
@@ -300,11 +290,17 @@
                 allow-clear
               />
             </a-form-item>
-            <a-form-item label="Số lượng" required>
+            <a-form-item label="Số lượng trong danh mục" required>
               <a-input-number v-model:value="form.soLuong" :min="0" style="width: 100%" />
+              <div style="margin-top: 4px; color: #666; font-size: 13px">
+                Tồn kho còn lại: <span style="font-weight: bold">{{ matchedInventoryStock }}</span>
+              </div>
+              <div v-if="editingId && form.soLuong > originalSoLuong + matchedInventoryStock" style="color: #ff4d4f; font-size: 12px; margin-top: 4px">
+                ⚠️ Cảnh báo: Số lượng vượt quá tồn kho (Tối đa có thể cấp phát: {{ originalSoLuong + matchedInventoryStock }})
+              </div>
             </a-form-item>
             <a-form-item label="Số bản đã mượn">
-              <a-input-number v-model:value="form.soBanDaMuon" :min="0" style="width: 100%" />
+              <a-input-number v-model:value="form.soBanDaMuon" disabled style="width: 100%" />
             </a-form-item>
             <a-form-item label="Link ảnh bìa">
               <a-input v-model:value="form.imageUrl" placeholder="Nhập URL ảnh bìa" />
@@ -328,6 +324,217 @@
           </a-col>
         </a-row>
       </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="inventoryFormOpen"
+      title="Nhập kho"
+      :confirm-loading="inventorySaving"
+      ok-text="Lưu"
+      cancel-text="Hủy"
+      @ok="saveInventoryBook"
+      @cancel="() => { inventoryFormOpen = false }"
+      centered
+      class="inventory-form-modal"
+      :width="900"
+      :z-index="1000"
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
+    >
+      <a-form :model="inventoryForm" layout="vertical" class="inventory-form" style="margin-top: 8px">
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item label="Tên sách" required>
+              <a-input v-model:value="inventoryForm.tenSach" placeholder="Nhập tên sách" />
+            </a-form-item>
+            <a-form-item label="Tác giả" required>
+              <a-input v-model:value="inventoryForm.tacGia" placeholder="Nhập tác giả" />
+            </a-form-item>
+            <a-form-item label="Nhà xuất bản" required>
+              <a-input v-model:value="inventoryForm.nhaSanXuat" placeholder="Nhập nhà xuất bản" />
+            </a-form-item>
+            <a-form-item label="ISBN">
+              <a-input v-model:value="inventoryForm.isbn" placeholder="Nhập ISBN" />
+            </a-form-item>
+          </a-col>
+
+          <a-col :span="12">
+            <a-form-item label="Thể loại">
+              <a-select
+                mode="multiple"
+                v-model:value="inventoryForm.theLoaiValues"
+                :options="theLoaiOptions"
+                @change="handleTheLoaiChangeInventory"
+                @select="handleTheLoaiSelectInventory"
+                placeholder="Chọn thể loại"
+                allow-clear
+              />
+            </a-form-item>
+            <a-form-item label="Số lượng nhập kho" required>
+              <a-input-number v-model:value="inventoryForm.soLuongTonKho" :min="1" style="width: 100%" />
+            </a-form-item>
+            <a-form-item label="Link ảnh bìa">
+              <a-input v-model:value="inventoryForm.imageUrl" placeholder="Nhập URL ảnh bìa" />
+            </a-form-item>
+            <a-form-item label="Mô tả">
+              <a-textarea v-model:value="inventoryForm.moTa" :rows="4" placeholder="Nhập mô tả" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="inventoryModalOpen"
+      title="Kho nhập"
+      :footer="null"
+      centered
+      :width="1000"
+      :z-index="1000"
+      :body-style="{ maxHeight: '80vh', overflowY: 'auto' }"
+    >
+      <div style="margin-bottom: 16px; display: flex; gap: 8px; justify-content: flex-end;">
+        <a-button type="primary" :loading="isImporting" @click="triggerImportExcel" style="background: #2196F3; border-color: #2196F3; color: white">
+          📥 Nhập Excel vào kho
+        </a-button>
+        <input
+          ref="excelFileInput"
+          type="file"
+          accept=".xlsx,.xls"
+          style="display: none"
+          @change="handleExcelFileChange"
+        />
+      </div>
+
+      <a-tabs v-model:activeKey="inventoryActiveTab">
+        <a-tab-pane key="stock" tab="Tồn kho">
+          <div class="table-wrapper">
+            <a-table
+              :columns="inventoryColumns"
+              :data-source="inventoryBooks"
+              :row-key="r => r.id"
+              :loading="inventoryListLoading"
+              :pagination="{ pageSize: 8 }"
+              style="width:100%"
+              :scroll="{ x: 1100 }"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'imageUrl'">
+                  <img :src="record.imageUrl || `https://picsum.photos/seed/inventory-${record.id}/120/150`" style="width: 72px; height: 100px; object-fit: cover; border-radius: 8px" />
+                </template>
+                <template v-if="column.key === 'tenSach'">
+                  <div style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.tenSach }}</div>
+                </template>
+                <template v-if="column.key === 'tacGia'">
+                  <div style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.tacGia }}</div>
+                </template>
+                <template v-if="column.key === 'nhaSanXuat'">
+                  <div style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.nhaSanXuat }}</div>
+                </template>
+                <template v-if="column.key === 'theLoai'">
+                  <div style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ record.theLoai || '' }}</div>
+                </template>
+                <template v-if="column.key === 'soLuongTonKho'">
+                  {{ record.soLuongTonKho }}
+                </template>
+                <template v-if="column.key === 'action'">
+                  <a-button size="small" type="primary" @click="openInventoryTransferModal(record)">Thêm vào danh mục</a-button>
+                </template>
+              </template>
+            </a-table>
+          </div>
+        </a-tab-pane>
+        
+        <a-tab-pane key="receipts" tab="Phiếu nhập">
+          <div class="table-wrapper">
+            <a-table
+              :columns="receiptColumns"
+              :data-source="importReceipts"
+              :row-key="r => r.id"
+              :loading="receiptListLoading"
+              :pagination="{ pageSize: 8 }"
+              style="width:100%"
+              :scroll="{ x: 1000 }"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'createdAt'">
+                  {{ new Date(record.createdAt).toLocaleString() }}
+                </template>
+                <template v-if="column.key === 'action'">
+                  <a-button size="small" @click="viewReceiptDetails(record)">Chi tiết</a-button>
+                </template>
+              </template>
+            </a-table>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
+
+      <div style="margin-top: 16px; text-align: right;">
+        <a-button @click="inventoryModalOpen = false">Đóng</a-button>
+      </div>
+    </a-modal>
+
+    <!-- MODAL CHI TIẾT PHIẾU NHẬP -->
+    <a-modal
+      v-model:open="receiptDetailOpen"
+      title="Chi tiết phiếu nhập"
+      :footer="null"
+      centered
+      :width="700"
+      :z-index="1100"
+      :body-style="{ maxHeight: '60vh', overflowY: 'auto' }"
+    >
+      <template v-if="selectedReceipt">
+        <a-descriptions :column="2" size="small" bordered style="margin-bottom: 16px;">
+          <a-descriptions-item label="Mã phiếu">{{ selectedReceipt.code }}</a-descriptions-item>
+          <a-descriptions-item label="Ngày nhập">{{ new Date(selectedReceipt.createdAt).toLocaleString() }}</a-descriptions-item>
+          <a-descriptions-item label="Người nhập">{{ selectedReceipt.createdBy }}</a-descriptions-item>
+          <a-descriptions-item label="Nguồn nhập">{{ selectedReceipt.source }}</a-descriptions-item>
+          <a-descriptions-item label="Ghi chú" :span="2">{{ selectedReceipt.note || '-' }}</a-descriptions-item>
+        </a-descriptions>
+        
+        <a-table
+          :columns="receiptItemColumns"
+          :data-source="selectedReceipt.items"
+          :row-key="r => r.id"
+          :pagination="false"
+          size="small"
+          style="width:100%"
+        />
+      </template>
+      <div style="margin-top: 16px; text-align: right;">
+        <a-button @click="receiptDetailOpen = false">Đóng</a-button>
+      </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="inventoryTransferModalOpen"
+      title="Thêm vào danh mục"
+      ok-text="Xác nhận"
+      cancel-text="Hủy"
+      @ok="confirmAddInventoryBookToCatalog"
+      @cancel="() => { inventoryTransferModalOpen = false }"
+      centered
+      :width="520"
+      :z-index="1200"
+      :body-style="{ maxHeight: '60vh', overflowY: 'auto' }"
+    >
+      <template v-if="selectedInventoryBook">
+        <p><strong>Tên sách:</strong> {{ selectedInventoryBook.tenSach }}</p>
+        <p><strong>Số lượng tồn kho:</strong> {{ selectedInventoryBook.soLuongTonKho }}</p>
+        <a-form layout="vertical">
+          <a-form-item label="Số lượng muốn đưa vào danh mục" required>
+            <a-input-number
+              v-model:value="inventoryTransferQuantity"
+              :min="1"
+              :max="selectedInventoryBook.soLuongTonKho"
+              style="width: 100%"
+            />
+          </a-form-item>
+        </a-form>
+      </template>
+      <template v-else>
+        <p>Không có sách nào được chọn.</p>
+      </template>
     </a-modal>
 
     <a-modal
@@ -406,7 +613,7 @@
             size="small"
             type="primary"
             style="background:#0d4a42; border-color:#0d4a42"
-            @click="() => { addingCategoryFromManager = true; newCategoryName = ''; isOtherCategoryModalOpen = true }"
+            @click="() => { addingCategoryTarget = 'manager'; newCategoryName = ''; isOtherCategoryModalOpen = true }"
           >+ Thêm thể loại</a-button>
         </div>
       </template>
@@ -476,6 +683,14 @@ const CATEGORIES_API_URL = isVpsHost
   ? `http://${window.location.hostname}:5185/api/categories`
   : 'http://localhost:5185/api/categories'
 
+const INVENTORY_BOOKS_API_URL = isVpsHost
+  ? `${GATEWAY_BASE_URL}/api/catalog/inventory-books`
+  : 'http://localhost:5185/api/inventory-books'
+
+const INVENTORY_RECEIPTS_API_URL = isVpsHost
+  ? `${GATEWAY_BASE_URL}/api/catalog/inventory-receipts`
+  : 'http://localhost:5185/api/inventory-receipts'
+
 const books = ref([])
 const search = ref('')
 const formOpen = ref(false)
@@ -486,6 +701,45 @@ const saving = ref(false)
 const collapsed = ref(false)
 const pagination = ref({ current: 1, pageSize: 10 })
 const selectedRowKeys = ref([])
+
+const inventoryActiveTab = ref('stock')
+const importReceipts = ref([])
+const receiptListLoading = ref(false)
+const receiptDetailOpen = ref(false)
+const selectedReceipt = ref(null)
+
+const inventoryFormOpen = ref(false)
+const inventoryModalOpen = ref(false)
+const inventoryTransferModalOpen = ref(false)
+const inventorySaving = ref(false)
+const inventoryListLoading = ref(false)
+const selectedInventoryBook = ref(null)
+const inventoryTransferQuantity = ref(1)
+const inventoryBooks = ref([])
+
+const inventoryForm = ref({
+  tenSach: '',
+  tacGia: '',
+  nhaSanXuat: '',
+  isbn: '',
+  theLoaiValues: [],
+  soLuongTonKho: 1,
+  imageUrl: '',
+  moTa: ''
+})
+
+const resetInventoryForm = () => {
+  inventoryForm.value = {
+    tenSach: '',
+    tacGia: '',
+    nhaSanXuat: '',
+    isbn: '',
+    theLoaiValues: [],
+    soLuongTonKho: 1,
+    imageUrl: '',
+    moTa: ''
+  }
+}
 const excelFileInput = ref(null)
 const isImporting = ref(false)
 
@@ -501,7 +755,7 @@ const triggerImportExcel = () => {
 }
 
 const importBooks = async (items) => {
-  const res = await fetch(`${BOOKS_API_URL}/import`, {
+  const res = await fetch(`${INVENTORY_BOOKS_API_URL}/import-excel`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(items)
@@ -593,8 +847,9 @@ const handleExcelFileChange = async (event) => {
     }
 
     const result = await importBooks(itemsToImport)
-    message.success(`Đã nhập thành công ${result.imported ?? itemsToImport.length} sách. Bỏ qua ${result.skipped ?? 0} dòng.`)
-    await loadBooks()
+    message.success(`Đã nhập thành công ${result.imported ?? itemsToImport.length} sách vào kho. Bỏ qua ${result.skipped ?? 0} dòng.`)
+    await loadInventoryBooks()
+    await loadReceipts()
   } catch (err) {
     console.error('Import Excel failed', err)
     message.error(err?.message || 'Lỗi khi nhập Excel')
@@ -633,7 +888,7 @@ const calculateStt = (index) => {
 
 const isOtherCategoryModalOpen = ref(false)
 const newCategoryName = ref('')
-const addingCategoryFromManager = ref(false)
+const addingCategoryTarget = ref(null)
 const manageCategoriesOpen = ref(false)
 const categoryDetailOpen = ref(false)
 const categoryDetailLoading = ref(false)
@@ -850,6 +1105,25 @@ const form = ref({
   theLoaiValues: []
 })
 
+const originalSoLuong = ref(0)
+
+const matchedInventoryBook = computed(() => {
+  const isbn = form.value.isbn?.trim().toLowerCase();
+  const tenSach = form.value.tenSach?.trim().toLowerCase();
+  if (!isbn && !tenSach) return null;
+  return inventoryBooks.value.find(b => {
+    const bIsbn = b.isbn?.trim().toLowerCase();
+    const bTenSach = b.tenSach?.trim().toLowerCase();
+    if (isbn && bIsbn === isbn) return true;
+    if (!isbn && tenSach && bTenSach === tenSach) return true;
+    return false;
+  }) || null;
+})
+
+const matchedInventoryStock = computed(() => {
+  return matchedInventoryBook.value ? matchedInventoryBook.value.soLuongTonKho : 0;
+})
+
 const categoryOptions = computed(() => {
   const source = (categories.value && categories.value.length > 0) ? categories.value : defaultTheLoaiOptions.map(o => o.value)
   const optionMap = new Map()
@@ -865,6 +1139,16 @@ const categoryOptions = computed(() => {
       optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
     }
   })
+
+  // include any currently selected values in inventory form
+  if (inventoryForm.value && inventoryForm.value.theLoaiValues) {
+    inventoryForm.value.theLoaiValues.forEach(value => {
+      const normalized = normalizeTheLoai(value)
+      if (normalized && normalized.toLowerCase() !== 'khác' && !optionMap.has(normalized.toLowerCase())) {
+        optionMap.set(normalized.toLowerCase(), { label: normalized, value: normalized })
+      }
+    })
+  }
 
   return Array.from(optionMap.values())
 })
@@ -929,6 +1213,29 @@ const handleTheLoaiSelect = (value) => {
   if (value === 'Khác') {
     form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
     newCategoryName.value = ''
+    addingCategoryTarget.value = 'book'
+    isOtherCategoryModalOpen.value = true
+  }
+}
+
+const handleTheLoaiChangeInventory = (values) => {
+  if (!Array.isArray(values)) {
+    inventoryForm.value.theLoaiValues = []
+    return
+  }
+
+  inventoryForm.value.theLoaiValues = removeDuplicateTheLoai(
+    values
+      .map(item => normalizeTheLoai(item))
+      .filter(item => item && item.toLowerCase() !== 'khác')
+  )
+}
+
+const handleTheLoaiSelectInventory = (value) => {
+  if (value === 'Khác') {
+    inventoryForm.value.theLoaiValues = inventoryForm.value.theLoaiValues.filter(item => item !== 'Khác')
+    newCategoryName.value = ''
+    addingCategoryTarget.value = 'inventory'
     isOtherCategoryModalOpen.value = true
   }
 }
@@ -969,13 +1276,13 @@ const handleConfirmOtherCategory = async () => {
   }
 
   try {
-    if (addingCategoryFromManager.value) {
+    if (addingCategoryTarget.value === 'manager') {
       await createCategory(normalized)
       await fetchCategories()
       await loadCategories()
       newCategoryName.value = ''
       isOtherCategoryModalOpen.value = false
-      addingCategoryFromManager.value = false
+      addingCategoryTarget.value = null
       message.success('Đã thêm thể loại mới')
     } else {
       const data = await createCategory(normalized)
@@ -987,14 +1294,22 @@ const handleConfirmOtherCategory = async () => {
         message.warning('API thể loại chưa sẵn sàng, thể loại sẽ lưu cùng sách')
       }
 
-      form.value.theLoaiValues = removeDuplicateTheLoai([
-        ...form.value.theLoaiValues,
-        returnedName
-      ])
+      if (addingCategoryTarget.value === 'inventory') {
+        inventoryForm.value.theLoaiValues = removeDuplicateTheLoai([
+          ...inventoryForm.value.theLoaiValues,
+          returnedName
+        ])
+      } else {
+        form.value.theLoaiValues = removeDuplicateTheLoai([
+          ...form.value.theLoaiValues,
+          returnedName
+        ])
+      }
 
       message.success('Đã thêm thể loại mới')
       newCategoryName.value = ''
       isOtherCategoryModalOpen.value = false
+      addingCategoryTarget.value = null
     }
   } catch (err) {
     console.error(err)
@@ -1006,8 +1321,12 @@ const handleConfirmOtherCategory = async () => {
 const handleCancelOtherCategory = () => {
   newCategoryName.value = ''
   isOtherCategoryModalOpen.value = false
-  addingCategoryFromManager.value = false
-  form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
+  if (addingCategoryTarget.value === 'inventory') {
+    inventoryForm.value.theLoaiValues = inventoryForm.value.theLoaiValues.filter(item => item !== 'Khác')
+  } else {
+    form.value.theLoaiValues = form.value.theLoaiValues.filter(item => item !== 'Khác')
+  }
+  addingCategoryTarget.value = null
 }
 
 const columnFilters = reactive({
@@ -1257,13 +1576,13 @@ const resetForm = () => {
 }
 
 const startAdd = () => {
-  editingId.value = null
-  resetForm()
-  formOpen.value = true
+  resetInventoryForm()
+  inventoryFormOpen.value = true
 }
 
-const startEdit = (book) => {
+const startEdit = async (book) => {
   editingId.value = book.id
+  await loadInventoryBooks()
   const parsed = parseTheLoaiString(book.theLoai)
   form.value = {
     tenSach: book.tenSach || '',
@@ -1276,6 +1595,7 @@ const startEdit = (book) => {
     isbn: book.isbn || '',
     theLoaiValues: parsed.theLoaiValues
   }
+  originalSoLuong.value = book.soLuong ?? 0
   formOpen.value = true
 }
 
@@ -1311,6 +1631,7 @@ const saveBook = async () => {
       if (!res.ok) {
         const err = await res.text()
         console.error('PUT failed:', res.status, err)
+        message.error(err || 'Lỗi khi cập nhật sách')
         return
       }
       await sendReportEvent('book.updated', payload.tenSach || payload.title)
@@ -1420,6 +1741,192 @@ const exportToExcel = () => {
   
   // Xuất file
   XLSX.writeFile(workbook, 'DanhSachSach.xlsx')
+}
+
+const inventoryColumns = [
+  { title: 'Ảnh', key: 'imageUrl', width: 90, align: 'center' },
+  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 200 },
+  { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 150 },
+  { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 150 },
+  { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', width: 150 },
+  { title: 'Số lượng trong kho', dataIndex: 'soLuongTonKho', key: 'soLuongTonKho', width: 120, align: 'center' },
+  { title: 'Thao tác', key: 'action', width: 150, align: 'center', fixed: 'right' }
+]
+
+const saveInventoryBook = async () => {
+  const payload = {
+    tenSach: inventoryForm.value.tenSach,
+    tacGia: inventoryForm.value.tacGia,
+    nhaSanXuat: inventoryForm.value.nhaSanXuat,
+    isbn: inventoryForm.value.isbn,
+    theLoai: (inventoryForm.value.theLoaiValues || []).join(', '),
+    soLuongTonKho: inventoryForm.value.soLuongTonKho,
+    imageUrl: inventoryForm.value.imageUrl,
+    moTa: inventoryForm.value.moTa
+  }
+
+  if (!payload.tenSach?.trim()) {
+    message.warning('Vui lòng nhập tên sách')
+    return
+  }
+  if (!payload.tacGia?.trim()) {
+    message.warning('Vui lòng nhập tác giả')
+    return
+  }
+  if (!payload.nhaSanXuat?.trim()) {
+    message.warning('Vui lòng nhập nhà xuất bản')
+    return
+  }
+  if (payload.soLuongTonKho === undefined || payload.soLuongTonKho === null || payload.soLuongTonKho <= 0) {
+    message.warning('Số lượng nhập kho phải lớn hơn 0')
+    return
+  }
+
+  inventorySaving.value = true
+  try {
+    const res = await fetch(INVENTORY_BOOKS_API_URL, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Lỗi khi nhập kho')
+      return
+    }
+    message.success('Đã nhập kho thành công')
+    inventoryFormOpen.value = false
+    await loadInventoryBooks()
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi khi nhập kho')
+  } finally {
+    inventorySaving.value = false
+  }
+}
+
+const loadInventoryBooks = async () => {
+  inventoryListLoading.value = true
+  try {
+    const res = await fetch(INVENTORY_BOOKS_API_URL, {
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      console.error('loadInventoryBooks failed:', res.status, txt)
+      message.error('Không thể tải danh sách kho nhập')
+      return
+    }
+    inventoryBooks.value = await res.json()
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi khi tải danh sách kho nhập')
+  } finally {
+    inventoryListLoading.value = false
+  }
+}
+
+const receiptColumns = [
+  { title: 'Mã phiếu', dataIndex: 'code', key: 'code' },
+  { title: 'Ngày nhập', key: 'createdAt' },
+  { title: 'Nguồn nhập', dataIndex: 'source', key: 'source' },
+  { title: 'Tổng đầu sách', dataIndex: 'totalItems', key: 'totalItems', align: 'center' },
+  { title: 'Tổng số lượng', dataIndex: 'totalQuantity', key: 'totalQuantity', align: 'center' },
+  { title: 'Ghi chú', dataIndex: 'note', key: 'note' },
+  { title: 'Thao tác', key: 'action', width: 100, align: 'center', fixed: 'right' }
+]
+
+const receiptItemColumns = [
+  { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach' },
+  { title: 'Số lượng', dataIndex: 'quantity', key: 'quantity', align: 'center' },
+  { title: 'Ghi chú', dataIndex: 'note', key: 'note' }
+]
+
+
+
+const loadReceipts = async () => {
+  receiptListLoading.value = true
+  try {
+    const res = await fetch(INVENTORY_RECEIPTS_API_URL, {
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      console.error('loadReceipts failed:', res.status, txt)
+      return
+    }
+    importReceipts.value = await res.json()
+  } catch (err) {
+    console.error(err)
+  } finally {
+    receiptListLoading.value = false
+  }
+}
+
+const openInventoryModal = async () => {
+  inventoryModalOpen.value = true
+  inventoryActiveTab.value = 'stock'
+  await loadInventoryBooks()
+  await loadReceipts()
+}
+
+const openInventoryTransferModal = (record) => {
+  selectedInventoryBook.value = record
+  inventoryTransferQuantity.value = record.soLuongTonKho
+  inventoryTransferModalOpen.value = true
+}
+
+const confirmAddInventoryBookToCatalog = async () => {
+  const quantity = inventoryTransferQuantity.value
+  if (!quantity || quantity <= 0) {
+    message.warning('Số lượng phải lớn hơn 0')
+    return
+  }
+  if (quantity > selectedInventoryBook.value.soLuongTonKho) {
+    message.warning('Số lượng không được lớn hơn tồn kho')
+    return
+  }
+
+  try {
+    const res = await fetch(`${INVENTORY_BOOKS_API_URL}/${selectedInventoryBook.value.id}/add-to-catalog`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ quantity })
+    })
+
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Lỗi khi thêm vào danh mục')
+      return
+    }
+
+    message.success('Đã thêm vào danh mục thành công')
+    inventoryTransferModalOpen.value = false
+    
+    await loadInventoryBooks()
+    await loadBooks()
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi khi thêm vào danh mục')
+  }
+}
+
+const viewReceiptDetails = async (record) => {
+  try {
+    const res = await fetch(`${INVENTORY_RECEIPTS_API_URL}/${record.id}`, {
+      headers: getAuthHeaders()
+    })
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Không thể tải chi tiết phiếu nhập')
+      return
+    }
+    selectedReceipt.value = await res.json()
+    receiptDetailOpen.value = true
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi khi tải chi tiết phiếu nhập')
+  }
 }
 
 onMounted(async () => {
@@ -1551,11 +2058,25 @@ onUnmounted(() => {
 .detail-image-wrapper { width: 100%; display:flex; align-items:center; justify-content:center }
 .detail-image { width: 100%; height: 320px; object-fit: cover; border-radius: 8px }
 
-/* Table wrapper to avoid page horizontal scroll */
 .table-wrapper {
   width: 100%;
   max-width: 100%;
   overflow-x: auto; /* allow table internal scroll if needed */
+}
+
+:deep(.ant-table-wrapper) {
+  max-width: 100%;
+}
+
+:deep(.ant-table) {
+  white-space: nowrap;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .cell-theloai {

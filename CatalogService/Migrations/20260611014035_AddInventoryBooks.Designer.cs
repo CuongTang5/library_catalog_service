@@ -4,6 +4,7 @@ using CatalogService.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CatalogService.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260611014035_AddInventoryBooks")]
+    partial class AddInventoryBooks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -363,79 +366,6 @@ namespace CatalogService.Migrations
                     b.ToTable("InventoryBooks");
                 });
 
-            modelBuilder.Entity("CatalogService.Models.InventoryImportReceipt", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<int>("TotalItems")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TotalQuantity")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("InventoryImportReceipts");
-                });
-
-            modelBuilder.Entity("CatalogService.Models.InventoryImportReceiptItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("InventoryBookId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ReceiptId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TenSach")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InventoryBookId");
-
-                    b.HasIndex("ReceiptId");
-
-                    b.ToTable("InventoryImportReceiptItems");
-                });
-
             modelBuilder.Entity("CatalogService.Models.Review", b =>
                 {
                     b.Property<int>("Id")
@@ -550,25 +480,6 @@ namespace CatalogService.Migrations
                     b.ToTable("StockImportReceipts");
                 });
 
-            modelBuilder.Entity("CatalogService.Models.InventoryImportReceiptItem", b =>
-                {
-                    b.HasOne("CatalogService.Models.InventoryBook", "InventoryBook")
-                        .WithMany()
-                        .HasForeignKey("InventoryBookId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("CatalogService.Models.InventoryImportReceipt", "Receipt")
-                        .WithMany("Items")
-                        .HasForeignKey("ReceiptId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InventoryBook");
-
-                    b.Navigation("Receipt");
-                });
-
             modelBuilder.Entity("CatalogService.Models.StockImportItem", b =>
                 {
                     b.HasOne("CatalogService.Models.Book", "Book")
@@ -586,11 +497,6 @@ namespace CatalogService.Migrations
                     b.Navigation("Book");
 
                     b.Navigation("Receipt");
-                });
-
-            modelBuilder.Entity("CatalogService.Models.InventoryImportReceipt", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("CatalogService.Models.StockImportReceipt", b =>
