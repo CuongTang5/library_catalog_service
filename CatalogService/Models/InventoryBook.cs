@@ -22,6 +22,10 @@ namespace CatalogService.Models
 
         public string? Isbn { get; set; }
 
+        public int? NamXuatBan { get; set; }
+
+        public string? TomTat { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     }

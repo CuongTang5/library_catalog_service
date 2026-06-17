@@ -84,7 +84,7 @@
                 + Nhập kho
               </a-button>
               <a-button @click="openInventoryModal" style="background: #ff9800; border-color: #ff9800; color: white">
-                📦 Kho nhập
+                📦 Quản lý kho
               </a-button>
             </div>
           </a-col>
@@ -227,6 +227,9 @@
                 </a-descriptions-item>
                 <a-descriptions-item label="Đánh giá">⭐ {{ formatRating(selectedBook) }} / 5</a-descriptions-item>
                 <a-descriptions-item label="ISBN">{{ selectedBook.isbn }}</a-descriptions-item>
+                <a-descriptions-item label="Năm xuất bản">
+                  {{ (selectedBook.namXuatBan !== null && selectedBook.namXuatBan !== undefined && selectedBook.namXuatBan !== '') ? selectedBook.namXuatBan : 'Chưa cập nhật' }}
+                </a-descriptions-item>
               </a-descriptions>
 
                 <div class="detail-description">
@@ -275,6 +278,9 @@
             </a-form-item>
             <a-form-item label="ISBN">
               <a-input v-model:value="form.isbn" placeholder="Nhập ISBN" />
+            </a-form-item>
+            <a-form-item label="Năm xuất bản">
+              <a-input-number v-model:value="form.namXuatBan" :min="1" placeholder="Nhập năm xuất bản" style="width: 100%" />
             </a-form-item>
           </a-col>
 
@@ -328,7 +334,7 @@
 
     <a-modal
       v-model:open="inventoryFormOpen"
-      title="Nhập kho"
+      :title="editingInventoryBookId ? 'Sửa thông tin sách trong kho' : 'Nhập kho'"
       :confirm-loading="inventorySaving"
       ok-text="Lưu"
       cancel-text="Hủy"
@@ -352,9 +358,12 @@
             <a-form-item label="Nhà xuất bản" required>
               <a-input v-model:value="inventoryForm.nhaSanXuat" placeholder="Nhập nhà xuất bản" />
             </a-form-item>
-            <a-form-item label="ISBN">
-              <a-input v-model:value="inventoryForm.isbn" placeholder="Nhập ISBN" />
-            </a-form-item>
+             <a-form-item label="ISBN">
+               <a-input v-model:value="inventoryForm.isbn" placeholder="Nhập ISBN" />
+             </a-form-item>
+             <a-form-item label="Năm xuất bản">
+               <a-input-number v-model:value="inventoryForm.namXuatBan" :min="1" style="width: 100%" placeholder="Nhập năm xuất bản" />
+             </a-form-item>
           </a-col>
 
           <a-col :span="12">
@@ -370,14 +379,17 @@
               />
             </a-form-item>
             <a-form-item label="Số lượng nhập kho" required>
-              <a-input-number v-model:value="inventoryForm.soLuongTonKho" :min="1" style="width: 100%" />
+              <a-input-number v-model:value="inventoryForm.soLuongTonKho" :min="1" style="width: 100%" :disabled="!!editingInventoryBookId" />
             </a-form-item>
             <a-form-item label="Link ảnh bìa">
               <a-input v-model:value="inventoryForm.imageUrl" placeholder="Nhập URL ảnh bìa" />
             </a-form-item>
-            <a-form-item label="Mô tả">
-              <a-textarea v-model:value="inventoryForm.moTa" :rows="4" placeholder="Nhập mô tả" />
-            </a-form-item>
+             <a-form-item label="Mô tả">
+               <a-textarea v-model:value="inventoryForm.moTa" :rows="4" placeholder="Nhập mô tả" />
+             </a-form-item>
+             <a-form-item label="Tóm tắt">
+               <a-textarea v-model:value="inventoryForm.tomTat" :rows="4" placeholder="Nhập tóm tắt" />
+             </a-form-item>
           </a-col>
         </a-row>
       </a-form>
@@ -392,32 +404,71 @@
       :z-index="1000"
       :body-style="{ maxHeight: '80vh', overflowY: 'auto' }"
     >
-      <div style="margin-bottom: 16px; display: flex; gap: 8px; justify-content: flex-end;">
-        <a-button type="primary" :loading="isImporting" @click="triggerImportExcel" style="background: #2196F3; border-color: #2196F3; color: white">
-          📥 Nhập Excel vào kho
-        </a-button>
-        <input
-          ref="excelFileInput"
-          type="file"
-          accept=".xlsx,.xls"
-          style="display: none"
-          @change="handleExcelFileChange"
+      <div class="inventory-toolbar">
+        <a-input-search
+          v-model:value="inventorySearch"
+          placeholder="Tìm theo tên sách, tác giả, NXB, thể loại, ISBN"
+          allow-clear
+          style="width: 360px"
         />
+        <div class="inventory-actions">
+          <a-button type="primary" :loading="isImporting" @click="triggerImportExcel" style="background: #2196F3; border-color: #2196F3; color: white">
+            📥 Nhập Excel vào kho
+          </a-button>
+          <input
+            ref="excelFileInput"
+            type="file"
+            accept=".xlsx,.xls"
+            style="display: none"
+            @change="handleExcelFileChange"
+          />
+        </div>
       </div>
 
       <a-tabs v-model:activeKey="inventoryActiveTab">
         <a-tab-pane key="stock" tab="Tồn kho">
+          <div v-if="selectedInventoryBookIds.length > 0" style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background: #e6f7ff; border: 1px solid #91d5ff; padding: 8px 16px; border-radius: 4px;">
+            <span>
+              <CheckCircleOutlined style="color: #1890ff; margin-right: 8px" />
+              Đã chọn <strong>{{ selectedInventoryBookIds.length }}</strong> sách
+            </span>
+            <a-space>
+              <a-button @click="selectedInventoryBookIds = []">
+                Hủy
+              </a-button>
+              <a-button type="primary" @click="openBatchAddModal">
+                ➕ Thêm hàng loạt vào danh mục
+              </a-button>
+            </a-space>
+          </div>
           <div class="table-wrapper">
             <a-table
               :columns="inventoryColumns"
-              :data-source="inventoryBooks"
+              :data-source="filteredInventoryBooks"
               :row-key="r => r.id"
               :loading="inventoryListLoading"
               :pagination="{ pageSize: 8 }"
               style="width:100%"
-              :scroll="{ x: 1100 }"
+              :scroll="{ x: 1200 }"
             >
+              <template #headerCell="{ column }">
+                <template v-if="column.key === 'checkbox'">
+                  <input
+                    type="checkbox"
+                    :checked="isAllInventorySelected"
+                    :indeterminate="isInventoryIndeterminate"
+                    @change="toggleSelectAllInventory"
+                  />
+                </template>
+              </template>
               <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'checkbox'">
+                  <input
+                    type="checkbox"
+                    :value="record.id"
+                    v-model="selectedInventoryBookIds"
+                  />
+                </template>
                 <template v-if="column.key === 'imageUrl'">
                   <img :src="record.imageUrl || `https://picsum.photos/seed/inventory-${record.id}/120/150`" style="width: 72px; height: 100px; object-fit: cover; border-radius: 8px" />
                 </template>
@@ -437,7 +488,10 @@
                   {{ record.soLuongTonKho }}
                 </template>
                 <template v-if="column.key === 'action'">
-                  <a-button size="small" type="primary" @click="openInventoryTransferModal(record)">Thêm vào danh mục</a-button>
+                  <a-space>
+                    <a-button size="small" type="primary" ghost @click="startEditInventoryBook(record)">Sửa</a-button>
+                    <a-button size="small" type="primary" @click="openInventoryTransferModal(record)">Thêm vào danh mục</a-button>
+                  </a-space>
                 </template>
               </template>
             </a-table>
@@ -535,6 +589,96 @@
       <template v-else>
         <p>Không có sách nào được chọn.</p>
       </template>
+    </a-modal>
+
+    <!-- BATCH ADD TO CATALOG MODAL -->
+    <a-modal
+      v-model:open="batchAddModalOpen"
+      title="➕ Thêm hàng loạt sách vào danh mục"
+      ok-text="Xác nhận"
+      cancel-text="Hủy"
+      @ok="handleConfirmBatchAdd"
+      @cancel="() => { batchAddModalOpen = false }"
+      centered
+      :width="600"
+      :z-index="1200"
+      :confirm-loading="isSubmittingBatchAdd"
+    >
+      <div style="margin-bottom: 16px;">
+        <span style="font-weight: 500;">Chế độ nhập số lượng:</span>
+        <div style="margin-top: 8px;">
+          <a-radio-group v-model:value="batchAddMode">
+            <a-radio value="same">Áp dụng cùng số lượng cho tất cả sách</a-radio>
+            <a-radio value="individual">Nhập số lượng cho từng sách</a-radio>
+          </a-radio-group>
+        </div>
+      </div>
+
+      <!-- Same quantity mode options -->
+      <div v-if="batchAddMode === 'same'" style="margin-bottom: 16px;">
+        <a-form layout="vertical">
+          <a-form-item label="Số lượng đưa vào danh mục cho mỗi sách" required>
+            <a-input-number
+              v-model:value="batchAddSameQuantity"
+              :min="1"
+              style="width: 100%"
+            />
+          </a-form-item>
+        </a-form>
+      </div>
+
+      <!-- Quantity per book mode options -->
+      <div v-if="batchAddMode === 'individual'" style="margin-bottom: 16px;">
+        <p style="font-weight: 500; margin-bottom: 8px;">Nhập số lượng chuyển cho từng sách:</p>
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; padding: 12px; border-radius: 4px; background: #fafafa;">
+          <div v-for="book in batchAddBooks" :key="book.id" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed #e8e8e8;">
+            <div style="flex: 1; margin-right: 16px; overflow: hidden;">
+              <div style="font-weight: 500; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{{ book.tenSach }}</div>
+              <div style="font-size: 12px; color: #8c8c8c;">Số lượng tồn kho: {{ book.soLuongTonKho }}</div>
+            </div>
+            <a-input-number
+              v-model:value="book.transferQuantity"
+              :min="1"
+              :max="book.soLuongTonKho"
+              style="width: 120px;"
+            />
+          </div>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- INSUFFICIENT STOCK WARNING MODAL -->
+    <a-modal
+      v-model:open="insufficientModalOpen"
+      title="⚠️ Cảnh báo: Sách không đủ tồn kho"
+      :footer="null"
+      centered
+      :width="600"
+      :z-index="1300"
+    >
+      <div style="margin-bottom: 16px;">
+        <p>Các sách sau đây không đủ số lượng tồn kho so với yêu cầu (yêu cầu: <strong>{{ batchAddSameQuantity }}</strong>):</p>
+        <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ffa39e; background: #fff1f0; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+          <div v-for="book in insufficientBooks" :key="book.id" style="margin-bottom: 8px; border-bottom: 1px dashed #ffccc7; padding-bottom: 4px;">
+            <div style="font-weight: bold; color: #cf1322;">{{ book.tenSach }}</div>
+            <div style="font-size: 13px; color: #595959;">Tồn kho hiện tại: {{ book.soLuongTonKho }}</div>
+          </div>
+        </div>
+        <p>Vui lòng lựa chọn hành động xử lý:</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <a-button type="primary" style="text-align: left; height: auto; padding: 8px 16px;" @click="handleInsufficientAction('max')">
+            <div style="font-weight: 600;">➕ Thêm số lượng tối đa có sẵn</div>
+            <div style="font-size: 12px; font-weight: normal; opacity: 0.9;">Ví dụ: yêu cầu 5, tồn kho 3 => chuyển vào 3</div>
+          </a-button>
+          <a-button type="primary" ghost style="text-align: left; height: auto; padding: 8px 16px;" @click="handleInsufficientAction('skip')">
+            <div style="font-weight: 600;">🚫 Bỏ qua các sách không đủ tồn kho</div>
+            <div style="font-size: 12px; font-weight: normal; opacity: 0.9;">Ví dụ: yêu cầu 5, tồn kho 3 => không chuyển sách này</div>
+          </a-button>
+          <a-button style="height: auto; padding: 8px 16px;" @click="insufficientModalOpen = false">
+            <div style="font-weight: 600;">Hủy bỏ</div>
+          </a-button>
+        </div>
+      </div>
     </a-modal>
 
     <a-modal
@@ -709,6 +853,9 @@ const receiptDetailOpen = ref(false)
 const selectedReceipt = ref(null)
 
 const inventoryFormOpen = ref(false)
+const selectedInventoryBookIds = ref([])
+const editingInventoryBookId = ref(null)
+
 const inventoryModalOpen = ref(false)
 const inventoryTransferModalOpen = ref(false)
 const inventorySaving = ref(false)
@@ -716,6 +863,15 @@ const inventoryListLoading = ref(false)
 const selectedInventoryBook = ref(null)
 const inventoryTransferQuantity = ref(1)
 const inventoryBooks = ref([])
+const inventorySearch = ref('')
+
+const batchAddModalOpen = ref(false)
+const batchAddMode = ref('same')
+const batchAddSameQuantity = ref(1)
+const batchAddBooks = ref([])
+const isSubmittingBatchAdd = ref(false)
+const insufficientModalOpen = ref(false)
+const insufficientBooks = ref([])
 
 const inventoryForm = ref({
   tenSach: '',
@@ -725,7 +881,9 @@ const inventoryForm = ref({
   theLoaiValues: [],
   soLuongTonKho: 1,
   imageUrl: '',
-  moTa: ''
+  moTa: '',
+  namXuatBan: null,
+  tomTat: ''
 })
 
 const resetInventoryForm = () => {
@@ -737,7 +895,127 @@ const resetInventoryForm = () => {
     theLoaiValues: [],
     soLuongTonKho: 1,
     imageUrl: '',
-    moTa: ''
+    moTa: '',
+    namXuatBan: null,
+    tomTat: ''
+  }
+  editingInventoryBookId.value = null
+}
+
+const openBatchAddModal = () => {
+  if (selectedInventoryBookIds.value.length === 0) return
+
+  batchAddBooks.value = filteredInventoryBooks.value
+    .filter(item => selectedInventoryBookIds.value.includes(item.id))
+    .map(item => ({
+      id: item.id,
+      tenSach: item.tenSach,
+      soLuongTonKho: item.soLuongTonKho,
+      transferQuantity: 1
+    }))
+
+  batchAddSameQuantity.value = 1
+  batchAddMode.value = 'same'
+  batchAddModalOpen.value = true
+}
+
+const handleConfirmBatchAdd = async () => {
+  if (batchAddMode.value === 'individual') {
+    for (const book of batchAddBooks.value) {
+      if (book.transferQuantity === undefined || book.transferQuantity === null || book.transferQuantity <= 0) {
+        message.warning(`Số lượng của sách "${book.tenSach}" phải lớn hơn 0`)
+        return
+      }
+      if (book.transferQuantity > book.soLuongTonKho) {
+        message.warning(`Số lượng của sách "${book.tenSach}" không được vượt quá tồn kho (${book.soLuongTonKho})`)
+        return
+      }
+    }
+
+    const items = batchAddBooks.value.map(b => ({
+      inventoryBookId: b.id,
+      quantity: b.transferQuantity
+    }))
+    await submitBatchAdd(items)
+  } else {
+    if (batchAddSameQuantity.value === undefined || batchAddSameQuantity.value === null || batchAddSameQuantity.value <= 0) {
+      message.warning('Vui lòng nhập số lượng hợp lệ')
+      return
+    }
+
+    const insufficient = batchAddBooks.value.filter(b => b.soLuongTonKho < batchAddSameQuantity.value)
+    if (insufficient.length > 0) {
+      insufficientBooks.value = insufficient
+      insufficientModalOpen.value = true
+    } else {
+      const items = batchAddBooks.value.map(b => ({
+        inventoryBookId: b.id,
+        quantity: batchAddSameQuantity.value
+      }))
+      await submitBatchAdd(items)
+    }
+  }
+}
+
+const handleInsufficientAction = async (action) => {
+  insufficientModalOpen.value = false
+  let items = []
+
+  if (action === 'max') {
+    items = batchAddBooks.value
+      .map(b => {
+        const qty = b.soLuongTonKho >= batchAddSameQuantity.value ? batchAddSameQuantity.value : b.soLuongTonKho
+        return { inventoryBookId: b.id, quantity: qty }
+      })
+      .filter(item => item.quantity > 0)
+  } else if (action === 'skip') {
+    items = batchAddBooks.value
+      .filter(b => b.soLuongTonKho >= batchAddSameQuantity.value)
+      .map(b => ({ inventoryBookId: b.id, quantity: batchAddSameQuantity.value }))
+  }
+
+  if (items.length === 0) {
+    message.warning('Không có sách nào được thêm vào danh mục.')
+    batchAddModalOpen.value = false
+    return
+  }
+
+  await submitBatchAdd(items)
+}
+
+const submitBatchAdd = async (items) => {
+  isSubmittingBatchAdd.value = true
+  try {
+    const payload = { items }
+    const res = await fetch(`${INVENTORY_BOOKS_API_URL}/batch-add-to-catalog`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    })
+
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Có lỗi xảy ra khi thêm hàng loạt')
+      return
+    }
+
+    const data = await res.json()
+    batchAddModalOpen.value = false
+
+    Modal.success({
+      title: 'Hoàn thành thêm hàng loạt vào Danh mục',
+      content: `Thành công: ${data.successCount} sách\nThất bại: ${data.failedCount} sách${data.failedCount > 0 ? `\n(IDs thất bại: ${data.failedIds.join(', ')})` : ''}`,
+      okText: 'Đóng'
+    })
+
+    await loadInventoryBooks()
+    await loadBooks()
+    selectedInventoryBookIds.value = []
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi kết nối khi thêm hàng loạt')
+  } finally {
+    isSubmittingBatchAdd.value = false
   }
 }
 const excelFileInput = ref(null)
@@ -801,25 +1079,35 @@ const handleExcelFileChange = async (event) => {
 
     const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' })
     const itemsToImport = []
+    const warnings = []
 
-    for (const row of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowNum = i + 2
       const tenSach = getExcelCell(row, ['Tên sách', 'Ten sach', 'TenSach'])
       if (!tenSach) {
+        warnings.push(`Dòng ${rowNum}: Tên sách trống, bỏ qua dòng này.`)
         continue
       }
 
       const tacGia = getExcelCell(row, ['Tác giả', 'Tac gia', 'TacGia']) || 'Chưa rõ'
       const nhaSanXuat = getExcelCell(row, ['NXB', 'Nha san xuat', 'NhaSanXuat']) || 'Chưa rõ'
       const theLoai = getExcelCell(row, ['Thể loại', 'The loai', 'TheLoai']) || 'Chưa phân loại'
-      const soLuongRaw = getExcelCell(row, ['Số lượng', 'So luong', 'SoLuong'])
+      const soLuongRaw = getExcelCell(row, ['SoLuongTonKho'])
       const soBanDaMuonRaw = getExcelCell(row, ['Đã mượn', 'Da muon', 'DaMuon', 'So ban da muon'])
       const isbn = getExcelCell(row, ['ISBN', 'Isbn'])
       const moTa = getExcelCell(row, ['Mô tả', 'Mo ta', 'MoTa'])
       const imageUrl = getExcelCell(row, ['Link ảnh', 'Link ảnh', 'Link ảnh'])
 
-      const soLuong = Number.isFinite(Number(soLuongRaw)) && Number(soLuongRaw) > 0
-        ? Math.trunc(Number(soLuongRaw))
-        : 1
+      let soLuong = 1
+      if (soLuongRaw !== '') {
+        const numVal = Number(soLuongRaw)
+        if (!Number.isFinite(numVal) || numVal <= 0) {
+          warnings.push(`Dòng ${rowNum}: Số lượng tồn kho "${soLuongRaw}" không hợp lệ, bỏ qua dòng này.`)
+          continue
+        }
+        soLuong = Math.trunc(numVal)
+      }
       let soBanDaMuon = Number.isFinite(Number(soBanDaMuonRaw)) && Number(soBanDaMuonRaw) >= 0
         ? Math.trunc(Number(soBanDaMuonRaw))
         : 0
@@ -834,6 +1122,8 @@ const handleExcelFileChange = async (event) => {
         nhaSanXuat,
         theLoai,
         soLuong,
+        soLuongTonKho: soLuong,
+        SoLuongTonKho: soLuong,
         soBanDaMuon,
         isbn,
         moTa,
@@ -841,11 +1131,21 @@ const handleExcelFileChange = async (event) => {
       })
     }
 
+    if (warnings.length > 0) {
+      Modal.warning({
+        title: 'Cảnh báo khi nhập Excel',
+        content: warnings.join('\n'),
+        okText: 'Đóng'
+      })
+      console.warn('Excel import warnings:', warnings)
+    }
+
     if (itemsToImport.length === 0) {
       message.warning('Không tìm thấy dòng sách hợp lệ trong file Excel.')
       return
     }
 
+    console.log('Excel import payload', itemsToImport)
     const result = await importBooks(itemsToImport)
     message.success(`Đã nhập thành công ${result.imported ?? itemsToImport.length} sách vào kho. Bỏ qua ${result.skipped ?? 0} dòng.`)
     await loadInventoryBooks()
@@ -1102,7 +1402,8 @@ const form = ref({
   imageUrl: '',
   moTa: '',
   isbn: '',
-  theLoaiValues: []
+  theLoaiValues: [],
+  namXuatBan: null
 })
 
 const originalSoLuong = ref(0)
@@ -1123,6 +1424,37 @@ const matchedInventoryBook = computed(() => {
 const matchedInventoryStock = computed(() => {
   return matchedInventoryBook.value ? matchedInventoryBook.value.soLuongTonKho : 0;
 })
+
+const filteredInventoryBooks = computed(() => {
+  const keyword = inventorySearch.value.trim().toLowerCase()
+  if (!keyword) return inventoryBooks.value
+
+  return inventoryBooks.value.filter(item =>
+    [item.tenSach, item.tacGia, item.nhaSanXuat, item.theLoai, item.isbn]
+      .some(value => String(value || '').toLowerCase().includes(keyword))
+  )
+})
+
+const isAllInventorySelected = computed(() => {
+  if (filteredInventoryBooks.value.length === 0) return false
+  return filteredInventoryBooks.value.every(item => selectedInventoryBookIds.value.includes(item.id))
+})
+
+const isInventoryIndeterminate = computed(() => {
+  const selectedCount = filteredInventoryBooks.value.filter(item => selectedInventoryBookIds.value.includes(item.id)).length
+  return selectedCount > 0 && selectedCount < filteredInventoryBooks.value.length
+})
+
+const toggleSelectAllInventory = (e) => {
+  const checked = e.target.checked
+  const filteredIds = filteredInventoryBooks.value.map(item => item.id)
+  if (checked) {
+    const newSelected = new Set([...selectedInventoryBookIds.value, ...filteredIds])
+    selectedInventoryBookIds.value = Array.from(newSelected)
+  } else {
+    selectedInventoryBookIds.value = selectedInventoryBookIds.value.filter(id => !filteredIds.includes(id))
+  }
+}
 
 const categoryOptions = computed(() => {
   const source = (categories.value && categories.value.length > 0) ? categories.value : defaultTheLoaiOptions.map(o => o.value)
@@ -1580,6 +1912,23 @@ const startAdd = () => {
   inventoryFormOpen.value = true
 }
 
+const startEditInventoryBook = (record) => {
+  editingInventoryBookId.value = record.id
+  inventoryForm.value = {
+    tenSach: record.tenSach || '',
+    tacGia: record.tacGia || '',
+    nhaSanXuat: record.nhaSanXuat || '',
+    isbn: record.isbn || '',
+    theLoaiValues: record.theLoai ? record.theLoai.split(',').map(s => s.trim()) : [],
+    soLuongTonKho: record.soLuongTonKho || 0,
+    imageUrl: record.imageUrl || '',
+    moTa: record.moTa || '',
+    namXuatBan: record.namXuatBan || null,
+    tomTat: record.tomTat || ''
+  }
+  inventoryFormOpen.value = true
+}
+
 const startEdit = async (book) => {
   editingId.value = book.id
   await loadInventoryBooks()
@@ -1593,7 +1942,8 @@ const startEdit = async (book) => {
     imageUrl: book.imageUrl || '',
     moTa: book.moTa || '',
     isbn: book.isbn || '',
-    theLoaiValues: parsed.theLoaiValues
+    theLoaiValues: parsed.theLoaiValues,
+    namXuatBan: book.namXuatBan ?? null
   }
   originalSoLuong.value = book.soLuong ?? 0
   formOpen.value = true
@@ -1618,7 +1968,8 @@ const saveBook = async () => {
       imageUrl: form.value.imageUrl,
       moTa: form.value.moTa,
       isbn: form.value.isbn,
-      theLoai: buildTheLoaiPayload()
+      theLoai: buildTheLoaiPayload(),
+      namXuatBan: form.value.namXuatBan
     }
 
     if (editingId.value) {
@@ -1744,13 +2095,16 @@ const exportToExcel = () => {
 }
 
 const inventoryColumns = [
+  { title: '', key: 'checkbox', width: 50, align: 'center' },
   { title: 'Ảnh', key: 'imageUrl', width: 90, align: 'center' },
   { title: 'Tên sách', dataIndex: 'tenSach', key: 'tenSach', width: 200 },
   { title: 'Tác giả', dataIndex: 'tacGia', key: 'tacGia', width: 150 },
   { title: 'NXB', dataIndex: 'nhaSanXuat', key: 'nhaSanXuat', width: 150 },
+  { title: 'ISBN', dataIndex: 'isbn', key: 'isbn', width: 130 },
+  { title: 'Năm XB', dataIndex: 'namXuatBan', key: 'namXuatBan', width: 100, align: 'center' },
   { title: 'Thể loại', dataIndex: 'theLoai', key: 'theLoai', width: 150 },
-  { title: 'Số lượng trong kho', dataIndex: 'soLuongTonKho', key: 'soLuongTonKho', width: 120, align: 'center' },
-  { title: 'Thao tác', key: 'action', width: 150, align: 'center', fixed: 'right' }
+  { title: 'SL tồn kho', dataIndex: 'soLuongTonKho', key: 'soLuongTonKho', width: 100, align: 'center' },
+  { title: 'Thao tác', key: 'action', width: 220, align: 'center', fixed: 'right' }
 ]
 
 const saveInventoryBook = async () => {
@@ -1762,7 +2116,9 @@ const saveInventoryBook = async () => {
     theLoai: (inventoryForm.value.theLoaiValues || []).join(', '),
     soLuongTonKho: inventoryForm.value.soLuongTonKho,
     imageUrl: inventoryForm.value.imageUrl,
-    moTa: inventoryForm.value.moTa
+    moTa: inventoryForm.value.moTa,
+    namXuatBan: inventoryForm.value.namXuatBan,
+    tomTat: inventoryForm.value.tomTat
   }
 
   if (!payload.tenSach?.trim()) {
@@ -1784,22 +2140,24 @@ const saveInventoryBook = async () => {
 
   inventorySaving.value = true
   try {
-    const res = await fetch(INVENTORY_BOOKS_API_URL, {
-      method: 'POST',
+    const isEdit = editingInventoryBookId.value !== null
+    const url = isEdit ? `${INVENTORY_BOOKS_API_URL}/${editingInventoryBookId.value}` : INVENTORY_BOOKS_API_URL
+    const res = await fetch(url, {
+      method: isEdit ? 'PUT' : 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     })
     if (!res.ok) {
       const txt = await res.text()
-      message.error(txt || 'Lỗi khi nhập kho')
+      message.error(txt || `Lỗi khi ${isEdit ? 'sửa' : 'nhập kho'}`)
       return
     }
-    message.success('Đã nhập kho thành công')
+    message.success(isEdit ? 'Đã sửa thành công' : 'Đã nhập kho thành công')
     inventoryFormOpen.value = false
     await loadInventoryBooks()
   } catch (err) {
     console.error(err)
-    message.error('Lỗi khi nhập kho')
+    message.error(isEdit ? 'Lỗi khi sửa' : 'Lỗi khi nhập kho')
   } finally {
     inventorySaving.value = false
   }
@@ -1864,6 +2222,7 @@ const loadReceipts = async () => {
 }
 
 const openInventoryModal = async () => {
+  selectedInventoryBookIds.value = []
   inventoryModalOpen.value = true
   inventoryActiveTab.value = 'stock'
   await loadInventoryBooks()
@@ -2185,4 +2544,17 @@ onUnmounted(() => {
   background: #e6f4ff;
 }
 
+.inventory-toolbar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inventory-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 </style>

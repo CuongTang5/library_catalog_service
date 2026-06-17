@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using CatalogService.Dtos;
 using System.Linq;
 
 namespace CatalogService.Controllers
@@ -105,6 +106,8 @@ namespace CatalogService.Controllers
                 moTa = mota,
                 isbn = b.Isbn,
                 theLoai = b.TheLoai,
+                namXuatBan = b.NamXuatBan,
+                tomTat = b.TomTat,
                 danhGiaTrungBinh = b.DanhGiaTrungBinh,
                 soLuotDanhGia = b.SoLuotDanhGia
             };
@@ -152,6 +155,7 @@ namespace CatalogService.Controllers
                     b.Id, b.TenSach, b.TacGia, b.NhaSanXuat,
                     b.SoLuong, b.SoBanDaMuon, b.SoBanConLai, b.TrangThai,
                     imageUrl, moTa = mota, isbn = b.Isbn, theLoai = b.TheLoai,
+                    namXuatBan = b.NamXuatBan, tomTat = b.TomTat,
                     danhGiaTrungBinh = b.DanhGiaTrungBinh,
                     soLuotDanhGia = b.SoLuotDanhGia,
                     latestReviews = (latest ?? new()).Select(MapReview)
@@ -204,6 +208,7 @@ namespace CatalogService.Controllers
                 book.Id, book.TenSach, book.TacGia, book.NhaSanXuat,
                 book.SoLuong, book.SoBanDaMuon, book.SoBanConLai, book.TrangThai,
                 imageUrl, moTa = mota, isbn = book.Isbn, theLoai = book.TheLoai,
+                namXuatBan = book.NamXuatBan, tomTat = book.TomTat,
                 danhGiaTrungBinh = book.DanhGiaTrungBinh,
                 soLuotDanhGia = book.SoLuotDanhGia,
                 latestReviews = latest.Select(MapReview)
@@ -211,8 +216,21 @@ namespace CatalogService.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Book>> CreateBook(Book book)
+        public async Task<ActionResult<Book>> CreateBook(CreateBookDto dto)
         {
+            var book = new Book
+            {
+                TenSach = dto.TenSach,
+                TacGia = dto.TacGia,
+                NhaSanXuat = dto.NhaSanXuat,
+                SoLuong = dto.SoLuong,
+                ImageUrl = dto.ImageUrl,
+                MoTa = dto.MoTa,
+                Isbn = dto.Isbn,
+                TheLoai = dto.TheLoai,
+                NamXuatBan = dto.NamXuatBan,
+                TomTat = dto.TomTat
+            };
             _context.Books.Add(book);
             await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetBook), new { id = book.Id }, book);
@@ -229,6 +247,8 @@ namespace CatalogService.Controllers
             public string? Isbn { get; set; }
             public string? MoTa { get; set; }
             public string? ImageUrl { get; set; }
+            public int? NamXuatBan { get; set; }
+            public string? TomTat { get; set; }
         }
 
         [HttpPost("import")]
@@ -273,7 +293,9 @@ namespace CatalogService.Controllers
                     SoBanDaMuon = soBanDaMuon,
                     Isbn = item?.Isbn?.Trim(),
                     MoTa = item?.MoTa?.Trim(),
-                    ImageUrl = item?.ImageUrl?.Trim()
+                    ImageUrl = item?.ImageUrl?.Trim(),
+                    NamXuatBan = item?.NamXuatBan,
+                    TomTat = item?.TomTat?.Trim()
                 });
 
                 imported++;
@@ -289,13 +311,8 @@ namespace CatalogService.Controllers
         }
 
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> UpdateBook(int id, Book book)
+        public async Task<IActionResult> UpdateBook(int id, [FromBody] UpdateBookDto dto)
         {
-            if (id != book.Id)
-            {
-                return BadRequest();
-            }
-
             var existingBook = await _context.Books.FindAsync(id);
             if (existingBook is null)
             {
@@ -304,17 +321,17 @@ namespace CatalogService.Controllers
 
             // Giữ nguyên SoBanDaMuon hiện có
             var currentBorrowed = existingBook.SoBanDaMuon;
-            if (book.SoLuong < currentBorrowed)
+            if (dto.SoLuong < currentBorrowed)
             {
                 return BadRequest("Không thể giảm số lượng thấp hơn số bản đang được mượn.");
             }
 
-            int diff = book.SoLuong - existingBook.SoLuong;
+            int diff = dto.SoLuong - existingBook.SoLuong;
             if (diff != 0)
             {
                 InventoryBook? inventoryBook = null;
-                var matchIsbn = !string.IsNullOrWhiteSpace(existingBook.Isbn) ? existingBook.Isbn.Trim() : book.Isbn?.Trim();
-                var matchTenSach = !string.IsNullOrWhiteSpace(existingBook.TenSach) ? existingBook.TenSach.Trim() : book.TenSach?.Trim();
+                var matchIsbn = !string.IsNullOrWhiteSpace(existingBook.Isbn) ? existingBook.Isbn.Trim() : dto.Isbn?.Trim();
+                var matchTenSach = !string.IsNullOrWhiteSpace(existingBook.TenSach) ? existingBook.TenSach.Trim() : dto.TenSach?.Trim();
 
                 if (!string.IsNullOrWhiteSpace(matchIsbn))
                 {
@@ -346,15 +363,17 @@ namespace CatalogService.Controllers
                 }
             }
 
-            // Chỉ cho sửa TenSach, TacGia, NhaSanXuat, TheLoai, ImageUrl, MoTa, Isbn, SoLuong
-            existingBook.TenSach = book.TenSach;
-            existingBook.TacGia = book.TacGia;
-            existingBook.NhaSanXuat = book.NhaSanXuat;
-            existingBook.TheLoai = book.TheLoai;
-            existingBook.ImageUrl = book.ImageUrl;
-            existingBook.MoTa = book.MoTa;
-            existingBook.Isbn = book.Isbn;
-            existingBook.SoLuong = book.SoLuong;
+            // Chỉ cho sửa TenSach, TacGia, NhaSanXuat, TheLoai, ImageUrl, MoTa, Isbn, SoLuong, NamXuatBan, TomTat
+            existingBook.TenSach = dto.TenSach;
+            existingBook.TacGia = dto.TacGia;
+            existingBook.NhaSanXuat = dto.NhaSanXuat;
+            existingBook.TheLoai = dto.TheLoai;
+            existingBook.ImageUrl = dto.ImageUrl;
+            existingBook.MoTa = dto.MoTa;
+            existingBook.Isbn = dto.Isbn;
+            existingBook.SoLuong = dto.SoLuong;
+            existingBook.NamXuatBan = dto.NamXuatBan;
+            existingBook.TomTat = dto.TomTat;
 
             await _context.SaveChangesAsync();
             return NoContent();
