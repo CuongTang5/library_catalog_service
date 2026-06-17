@@ -341,9 +341,9 @@
       @ok="saveInventoryBook"
       @cancel="() => { inventoryFormOpen = false }"
       centered
-      class="inventory-form-modal"
+      class="inventory-form-modal inventory-edit-modal"
       :width="900"
-      :z-index="1000"
+      :z-index="3000"
       :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
     >
       <a-form :model="inventoryForm" layout="vertical" class="inventory-form" style="margin-top: 8px">
@@ -2556,5 +2556,13 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+:global(.inventory-edit-modal) {
+  z-index: 3000 !important;
+}
+
+:global(.inventory-edit-modal .ant-modal-mask) {
+  z-index: 2999 !important;
 }
 </style>
