@@ -129,7 +129,7 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<object>>> GetBooks()
         {
             var books = await _context.Books.ToListAsync();
@@ -140,7 +140,6 @@ namespace CatalogService.Controllers
                 .ToListAsync();
             var reviewsByBook = allReviews.GroupBy(r => r.BookId)
                 .ToDictionary(g => g.Key, g => g.Take(3).ToList());
-
             return Ok(books.Select(b =>
             {
                 Descriptions.TryGetValue(b.TenSach ?? string.Empty, out var desc);

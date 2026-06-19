@@ -44,6 +44,7 @@ namespace CatalogService.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         public async Task<ActionResult<object>> CreateInventoryBook([FromBody] CreateInventoryBookDto? request)
         {
             if (request is null)
