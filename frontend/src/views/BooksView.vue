@@ -333,6 +333,61 @@
     </a-modal>
 
     <a-modal
+      v-model:open="importTypeOpen"
+      title="Chọn loại nhập kho"
+      :footer="null"
+      centered
+      :width="520"
+    >
+      <div class="import-type-grid">
+        <button class="import-type-card" type="button" @click="openOldBookImport">
+          <span class="import-type-title">Nhập sách cũ</span>
+          <span class="import-type-desc">Chọn sách đã có trong danh mục và nhập thêm số lượng.</span>
+        </button>
+        <button class="import-type-card" type="button" @click="openNewBookImport">
+          <span class="import-type-title">Nhập sách mới</span>
+          <span class="import-type-desc">Tạo đầu sách mới bằng form nhập kho hiện tại.</span>
+        </button>
+      </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="oldBookImportOpen"
+      title="Nhập sách cũ"
+      :confirm-loading="oldBookImportSaving"
+      ok-text="Lưu"
+      cancel-text="Hủy"
+      @ok="submitOldBookImport"
+      @cancel="resetOldBookImport"
+      centered
+      :width="720"
+    >
+      <a-form :model="oldBookImportForm" layout="vertical">
+        <a-form-item label="Sách" required>
+          <a-select
+            v-model:value="oldBookImportForm.bookId"
+            show-search
+            placeholder="Chọn sách cũ"
+            :options="oldBookOptions"
+            :filter-option="filterOldBookOption"
+            option-label-prop="label"
+          />
+        </a-form-item>
+        <a-form-item label="Số lượng nhập thêm" required>
+          <a-input-number
+            v-model:value="oldBookImportForm.quantity"
+            :min="1"
+            :precision="0"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-form-item label="Ghi chú">
+          <a-textarea v-model:value="oldBookImportForm.note" :rows="3" placeholder="Ghi chú cho lần nhập này" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
       v-model:open="inventoryFormOpen"
       :title="editingInventoryBookId ? 'Sửa thông tin sách trong kho' : 'Nhập kho'"
       :confirm-loading="inventorySaving"
@@ -853,6 +908,9 @@ const receiptDetailOpen = ref(false)
 const selectedReceipt = ref(null)
 
 const inventoryFormOpen = ref(false)
+const importTypeOpen = ref(false)
+const oldBookImportOpen = ref(false)
+const oldBookImportSaving = ref(false)
 const selectedInventoryBookIds = ref([])
 const editingInventoryBookId = ref(null)
 
@@ -864,6 +922,12 @@ const selectedInventoryBook = ref(null)
 const inventoryTransferQuantity = ref(1)
 const inventoryBooks = ref([])
 const inventorySearch = ref('')
+
+const oldBookImportForm = ref({
+  bookId: undefined,
+  quantity: 1,
+  note: ''
+})
 
 const batchAddModalOpen = ref(false)
 const batchAddMode = ref('same')
@@ -1435,6 +1499,17 @@ const filteredInventoryBooks = computed(() => {
   )
 })
 
+const oldBookOptions = computed(() =>
+  books.value.map(book => ({
+    label: `${book.tenSach || 'Chưa đặt tên'}${book.tacGia ? ` - ${book.tacGia}` : ''} (SL: ${book.soLuong ?? 0})`,
+    value: book.id
+  }))
+)
+
+const filterOldBookOption = (input, option) => {
+  return String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+}
+
 const isAllInventorySelected = computed(() => {
   if (filteredInventoryBooks.value.length === 0) return false
   return filteredInventoryBooks.value.every(item => selectedInventoryBookIds.value.includes(item.id))
@@ -1907,9 +1982,85 @@ const resetForm = () => {
   handleCancelOtherCategory()
 }
 
+const resetOldBookImport = () => {
+  oldBookImportForm.value = {
+    bookId: undefined,
+    quantity: 1,
+    note: ''
+  }
+  oldBookImportOpen.value = false
+}
+
 const startAdd = () => {
+  importTypeOpen.value = true
+}
+
+const openNewBookImport = () => {
+  importTypeOpen.value = false
   resetInventoryForm()
   inventoryFormOpen.value = true
+}
+
+const openOldBookImport = () => {
+  importTypeOpen.value = false
+  resetOldBookImport()
+  oldBookImportOpen.value = true
+}
+
+const submitOldBookImport = async () => {
+  const bookId = oldBookImportForm.value.bookId
+  const quantity = Number(oldBookImportForm.value.quantity || 0)
+
+  if (!bookId) {
+    message.warning('Vui lòng chọn sách cũ')
+    return
+  }
+
+  if (!quantity || quantity <= 0) {
+    message.warning('Số lượng nhập thêm phải lớn hơn 0')
+    return
+  }
+
+  const selectedBook = books.value.find(book => book.id === bookId)
+  if (!selectedBook) {
+    message.warning('Không tìm thấy thông tin sách đã chọn')
+    return
+  }
+
+  oldBookImportSaving.value = true
+  try {
+    const res = await fetch(INVENTORY_BOOKS_API_URL, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        tenSach: selectedBook.tenSach || '',
+        tacGia: selectedBook.tacGia || '',
+        nhaSanXuat: selectedBook.nhaSanXuat || '',
+        isbn: selectedBook.isbn || '',
+        theLoai: selectedBook.theLoai || '',
+        soLuongTonKho: quantity,
+        imageUrl: selectedBook.imageUrl || '',
+        moTa: selectedBook.moTa || '',
+        namXuatBan: selectedBook.namXuatBan ?? null,
+        tomTat: selectedBook.tomTat || ''
+      })
+    })
+
+    if (!res.ok) {
+      const txt = await res.text()
+      message.error(txt || 'Lỗi khi nhập sách cũ vào kho')
+      return
+    }
+
+    message.success('Đã nhập sách cũ vào kho thành công')
+    resetOldBookImport()
+    await loadInventoryBooks()
+  } catch (err) {
+    console.error(err)
+    message.error('Lỗi khi nhập sách cũ vào kho')
+  } finally {
+    oldBookImportSaving.value = false
+  }
 }
 
 const startEditInventoryBook = (record) => {
@@ -2556,6 +2707,45 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.import-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.import-type-card {
+  min-height: 132px;
+  padding: 18px;
+  text-align: left;
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.import-type-card:hover {
+  border-color: #0d4a42;
+  box-shadow: 0 6px 18px rgba(13, 74, 66, .12);
+}
+
+.import-type-title,
+.import-type-desc {
+  display: block;
+}
+
+.import-type-title {
+  color: #0d4a42;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.import-type-desc {
+  color: #5f6b66;
+  line-height: 1.45;
 }
 
 :global(.inventory-edit-modal) {

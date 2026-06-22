@@ -135,3 +135,9 @@ D:\fullstack\btl\CatalogService\obj\Debug\net8.0\refint\CatalogService.dll
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.pdb
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\CatalogService.genruntimeconfig.cache
 D:\fullstack\btl\CatalogService\obj\Debug\net8.0\ref\CatalogService.dll
+D:\fullstack\btl\.build-check\CatalogService\appsettings.json
+D:\fullstack\btl\.build-check\CatalogService\CatalogService.exe
+D:\fullstack\btl\.build-check\CatalogService\CatalogService.deps.json
+D:\fullstack\btl\.build-check\CatalogService\CatalogService.runtimeconfig.json
+D:\fullstack\btl\.build-check\CatalogService\CatalogService.dll
+D:\fullstack\btl\.build-check\CatalogService\CatalogService.pdb

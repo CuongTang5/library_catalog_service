@@ -22,6 +22,7 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<object>>> GetReceipts()
         {
             var receipts = await _context.InventoryImportReceipts
@@ -43,6 +44,7 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet("{id:int}")]
+        [AllowAnonymous]
         public async Task<ActionResult<object>> GetReceipt(int id)
         {
             var receipt = await _context.InventoryImportReceipts

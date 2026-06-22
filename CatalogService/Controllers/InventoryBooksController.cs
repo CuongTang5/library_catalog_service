@@ -20,8 +20,11 @@ namespace CatalogService.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<object>>> GetInventoryBooks()
         {
+            await ConsolidateDuplicateInventoryBooksAsync();
+
             var inventoryBooks = await _context.InventoryBooks
                 .OrderByDescending(b => b.CreatedAt)
                 .ToListAsync();
@@ -63,22 +66,46 @@ namespace CatalogService.Controllers
                 return BadRequest("Số lượng nhập kho phải lớn hơn 0.");
             }
 
-            var inventoryBook = new InventoryBook
-            {
-                TenSach = tenSach,
-                TacGia = request.TacGia?.Trim() ?? string.Empty,
-                NhaSanXuat = request.NhaSanXuat?.Trim() ?? string.Empty,
-                TheLoai = string.IsNullOrWhiteSpace(request.TheLoai) ? null : request.TheLoai?.Trim(),
-                SoLuongTonKho = request.SoLuongTonKho,
-                ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl?.Trim(),
-                MoTa = string.IsNullOrWhiteSpace(request.MoTa) ? null : request.MoTa?.Trim(),
-                Isbn = string.IsNullOrWhiteSpace(request.Isbn) ? null : request.Isbn?.Trim(),
-                NamXuatBan = request.NamXuatBan,
-                TomTat = string.IsNullOrWhiteSpace(request.TomTat) ? null : request.TomTat?.Trim(),
-                CreatedAt = DateTime.UtcNow
-            };
+            var normalizedIsbn = request.Isbn?.Trim();
+            InventoryBook? inventoryBook = null;
 
-            _context.InventoryBooks.Add(inventoryBook);
+            if (!string.IsNullOrWhiteSpace(normalizedIsbn))
+            {
+                inventoryBook = await _context.InventoryBooks
+                    .FirstOrDefaultAsync(b => b.Isbn != null && b.Isbn.Trim().ToLower() == normalizedIsbn.ToLower());
+            }
+
+            if (inventoryBook is null)
+            {
+                var normalizedTacGia = request.TacGia?.Trim().ToLower() ?? string.Empty;
+                inventoryBook = await _context.InventoryBooks
+                    .FirstOrDefaultAsync(b => b.TenSach.Trim().ToLower() == tenSach.ToLower()
+                                           && b.TacGia.Trim().ToLower() == normalizedTacGia);
+            }
+
+            if (inventoryBook is null)
+            {
+                inventoryBook = new InventoryBook
+                {
+                    TenSach = tenSach,
+                    TacGia = request.TacGia?.Trim() ?? string.Empty,
+                    NhaSanXuat = request.NhaSanXuat?.Trim() ?? string.Empty,
+                    TheLoai = string.IsNullOrWhiteSpace(request.TheLoai) ? null : request.TheLoai?.Trim(),
+                    SoLuongTonKho = request.SoLuongTonKho,
+                    ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl?.Trim(),
+                    MoTa = string.IsNullOrWhiteSpace(request.MoTa) ? null : request.MoTa?.Trim(),
+                    Isbn = string.IsNullOrWhiteSpace(request.Isbn) ? null : request.Isbn?.Trim(),
+                    NamXuatBan = request.NamXuatBan,
+                    TomTat = string.IsNullOrWhiteSpace(request.TomTat) ? null : request.TomTat?.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.InventoryBooks.Add(inventoryBook);
+            }
+            else
+            {
+                inventoryBook.SoLuongTonKho += request.SoLuongTonKho;
+            }
 
             var receipt = new InventoryImportReceipt
             {
@@ -88,7 +115,7 @@ namespace CatalogService.Controllers
                 Source = "Manual",
                 Note = "Nhập kho thủ công bằng form",
                 TotalItems = 1,
-                TotalQuantity = inventoryBook.SoLuongTonKho
+                TotalQuantity = request.SoLuongTonKho
             };
             _context.InventoryImportReceipts.Add(receipt);
 
@@ -97,7 +124,7 @@ namespace CatalogService.Controllers
                 Receipt = receipt,
                 InventoryBook = inventoryBook,
                 TenSach = inventoryBook.TenSach,
-                Quantity = inventoryBook.SoLuongTonKho,
+                Quantity = request.SoLuongTonKho,
                 Note = "Nhập kho thủ công"
             };
             _context.InventoryImportReceiptItems.Add(receiptItem);
@@ -119,6 +146,55 @@ namespace CatalogService.Controllers
                 tomTat = inventoryBook.TomTat,
                 createdAt = inventoryBook.CreatedAt
             });
+        }
+
+        private static string BuildInventoryMergeKey(InventoryBook book)
+        {
+            var isbn = book.Isbn?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(isbn))
+            {
+                return $"isbn:{isbn}";
+            }
+
+            return $"book:{book.TenSach.Trim().ToLowerInvariant()}|{book.TacGia.Trim().ToLowerInvariant()}";
+        }
+
+        private async Task ConsolidateDuplicateInventoryBooksAsync()
+        {
+            var inventoryBooks = await _context.InventoryBooks.ToListAsync();
+            var duplicateGroups = inventoryBooks
+                .GroupBy(BuildInventoryMergeKey)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            if (duplicateGroups.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var group in duplicateGroups)
+            {
+                var orderedBooks = group.OrderBy(b => b.CreatedAt).ThenBy(b => b.Id).ToList();
+                var keeper = orderedBooks[0];
+                var duplicates = orderedBooks.Skip(1).ToList();
+                var duplicateIds = duplicates.Select(b => b.Id).ToList();
+
+                keeper.SoLuongTonKho += duplicates.Sum(b => b.SoLuongTonKho);
+
+                var receiptItems = await _context.InventoryImportReceiptItems
+                    .Where(i => duplicateIds.Contains(i.InventoryBookId))
+                    .ToListAsync();
+
+                foreach (var item in receiptItems)
+                {
+                    item.InventoryBookId = keeper.Id;
+                    item.InventoryBook = keeper;
+                }
+
+                _context.InventoryBooks.RemoveRange(duplicates);
+            }
+
+            await _context.SaveChangesAsync();
         }
 
         [HttpPut("{id:int}")]
@@ -148,6 +224,108 @@ namespace CatalogService.Controllers
         public class AddToCatalogRequest
         {
             public int Quantity { get; set; }
+        }
+
+        public class ImportExistingCatalogBookRequest
+        {
+            public int BookId { get; set; }
+            public int Quantity { get; set; }
+            public string? Note { get; set; }
+        }
+
+        [HttpPost("import-existing")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> ImportExistingCatalogBook([FromBody] ImportExistingCatalogBookRequest? request)
+        {
+            if (request is null || request.BookId <= 0)
+            {
+                return BadRequest("Vui lòng chọn sách cần nhập kho.");
+            }
+
+            if (request.Quantity <= 0)
+            {
+                return BadRequest("Số lượng nhập kho phải lớn hơn 0.");
+            }
+
+            var book = await _context.Books.FindAsync(request.BookId);
+            if (book is null)
+            {
+                return NotFound("Không tìm thấy sách trong danh mục.");
+            }
+
+            var normalizedIsbn = book.Isbn?.Trim();
+            var normalizedTenSach = book.TenSach.Trim();
+            InventoryBook? inventoryBook = null;
+
+            if (!string.IsNullOrWhiteSpace(normalizedIsbn))
+            {
+                inventoryBook = await _context.InventoryBooks
+                    .FirstOrDefaultAsync(b => b.Isbn != null && b.Isbn.Trim().ToLower() == normalizedIsbn.ToLower());
+            }
+
+            if (inventoryBook is null)
+            {
+                inventoryBook = await _context.InventoryBooks
+                    .FirstOrDefaultAsync(b => b.TenSach.Trim().ToLower() == normalizedTenSach.ToLower());
+            }
+
+            if (inventoryBook is null)
+            {
+                inventoryBook = new InventoryBook
+                {
+                    TenSach = book.TenSach,
+                    TacGia = book.TacGia,
+                    NhaSanXuat = book.NhaSanXuat,
+                    TheLoai = book.TheLoai,
+                    SoLuongTonKho = request.Quantity,
+                    ImageUrl = book.ImageUrl,
+                    MoTa = book.MoTa,
+                    Isbn = book.Isbn,
+                    NamXuatBan = book.NamXuatBan,
+                    TomTat = book.TomTat,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.InventoryBooks.Add(inventoryBook);
+            }
+            else
+            {
+                inventoryBook.SoLuongTonKho += request.Quantity;
+            }
+
+            var note = string.IsNullOrWhiteSpace(request.Note)
+                ? "Nhập thêm sách cũ vào kho"
+                : request.Note.Trim();
+
+            var receipt = new InventoryImportReceipt
+            {
+                Code = $"PN-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = User.Identity?.Name ?? "admin",
+                Source = "Manual",
+                Note = note,
+                TotalItems = 1,
+                TotalQuantity = request.Quantity
+            };
+            _context.InventoryImportReceipts.Add(receipt);
+
+            _context.InventoryImportReceiptItems.Add(new InventoryImportReceiptItem
+            {
+                Receipt = receipt,
+                InventoryBook = inventoryBook,
+                TenSach = inventoryBook.TenSach,
+                Quantity = request.Quantity,
+                Note = note
+            });
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                inventoryBook.Id,
+                inventoryBook.TenSach,
+                inventoryBook.SoLuongTonKho,
+                importedQuantity = request.Quantity
+            });
         }
 
         [HttpPost("{id:int}/add-to-catalog")]

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CatalogService.Controllers
 {
+    [Route("api/stock-imports")]
     [Route("api/[controller]")]
     [ApiController]
     public class StockImportsController : ControllerBase
